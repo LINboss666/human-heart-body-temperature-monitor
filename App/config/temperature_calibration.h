@@ -22,12 +22,21 @@
 
 typedef enum {
     TEMP_MODEL_UNCALIBRATED = 0, /**< default; produces TEMP_UNCALIBRATED */
-    TEMP_MODEL_LINEAR_MV,        /**< centi = (mv - intercept) * 100 / slope_uV */
-    TEMP_MODEL_NTC_TABLE         /**< piecewise-linear ADC-code table */
+    TEMP_MODEL_LINEAR_MV         /**< centi = (pin_mV - intercept) * 100 / slope */
 } temp_sensor_model_t;
 
-/** Which model temperature.c will run. Nothing here is measured yet. */
+/**
+ * Which model temperature.c will run. Nothing here is measured yet, so the
+ * shipping default is UNCALIBRATED.
+ *
+ * It is #ifndef-guarded for one reason: tests/host/test_temperature.c overrides
+ * it so the linear and table branches are actually compiled and executed rather
+ * than left as untested dead code. The firmware build never defines it, and so
+ * always gets UNCALIBRATED.
+ */
+#ifndef TEMP_SENSOR_MODEL
 #define TEMP_SENSOR_MODEL           TEMP_MODEL_UNCALIBRATED
+#endif
 
 /* --------------------------------------------- raw code sanity / probe fault */
 
@@ -63,28 +72,19 @@ typedef enum {
 /* --------------------------------------------------------- model parameters */
 
 /**
- * TEMP_MODEL_LINEAR_MV: a sensor whose output is a straight line in pin mV.
- * slope_nanovolt_per_centi is nanovolts per 0.01 C, so 10000 uV/C = 100000.
- * Both are UNVERIFIED placeholders.
+ * TEMP_MODEL_LINEAR_MV: a sensor whose output is a straight line in pin mV,
+ *   centi = (pin_mV - TEMP_LINEAR_INTERCEPT_MV) * 100000 / slope_nv_per_centi
+ *
+ * Both numbers are UNVERIFIED and describe no real part. They are chosen so the
+ * branch is exercisable at all: with these values an ADC code near mid-scale
+ * lands inside TEMP_CENTI_MIN..MAX_VALID, which lets tests/host/
+ * test_temperature_calibrated.c actually reach a successful conversion instead
+ * of only ever exercising the rejection path. A placeholder of
+ * "1 mV per 0.01 C" would have mapped mid-scale to 11 C, silently turning every
+ * calibrated test into a rejection test.
  */
-#define TEMP_LINEAR_SLOPE_NV_PER_CENTI   100000L  /* UNVERIFIED */
-#define TEMP_LINEAR_INTERCEPT_MV               500L  /* UNVERIFIED */
-
-/**
- * TEMP_MODEL_NTC_TABLE: piecewise linear over ADC codes. Table entries are
- * (code, centi) pairs sorted by ascending code; interpolation between points is
- * integer. Empty by construction: filling it in is the hardware task.
- */
-#define TEMP_TABLE_POINT_COUNT      0U
-
-typedef struct {
-    uint16_t adc_code;
-    int16_t  centi_c;
-} temp_table_point_t;
-
-/** Explicitly empty rather than absent, so the file compiles either way. */
-#define TEMP_TABLE_EMPTY_INIT \
-    { { 0U, 0 } }
+#define TEMP_LINEAR_SLOPE_NV_PER_CENTI   30000L  /* UNVERIFIED placeholder */
+#define TEMP_LINEAR_INTERCEPT_MV             500L  /* UNVERIFIED placeholder */
 
 /* ------------------------------------------------------------- smoothing */
 

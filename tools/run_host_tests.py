@@ -51,10 +51,19 @@ EXTRA_SOURCES = {
     "test_rtc_calendar.c": [
         ROOT / "App" / "rtc_service" / "rtc_calendar.c",
     ],
-    "test_font_format.c": [
-        ROOT / "ThirdParty" / "kk_oled" / "graphics" / "kk_oled_font.c",
-        ROOT / "tests" / "host" / "kk_oled_font_stubs.c",
+    "test_temperature.c": [
+        ROOT / "App" / "temperature" / "temperature.c",
     ],
+    "test_temperature_calibrated.c": [
+        ROOT / "App" / "temperature" / "temperature.c",
+    ],
+}
+
+# Per-test -D flags. Applied to the whole compile, not just the test file,
+# because test_temperature_calibrated.c is only meaningful if temperature.c
+# itself is rebuilt against the calibration model.
+EXTRA_DEFS = {
+    "test_temperature_calibrated.c": ["-DTEMP_SENSOR_MODEL=TEMP_MODEL_LINEAR_MV"],
 }
 
 CFLAGS = [
@@ -77,7 +86,8 @@ def build_one(test_src: Path, verbose: bool) -> tuple[Path | None, str]:
     exe = BUILD_DIR / (test_src.stem + ".exe")
     sources = [str(p) for p in COMMON_SOURCES]
     sources += [str(p) for p in EXTRA_SOURCES.get(test_src.name, [])]
-    cmd = (zig_cc() + CFLAGS + [f"-I{p}" for p in INCLUDES] + sources
+    cmd = (zig_cc() + CFLAGS + EXTRA_DEFS.get(test_src.name, [])
+           + [f"-I{p}" for p in INCLUDES] + sources
            + [str(test_src)] + EXTRA_LIBS.get(test_src.name, []) + ["-o", str(exe)])
     if verbose:
         print("  " + " ".join(cmd))

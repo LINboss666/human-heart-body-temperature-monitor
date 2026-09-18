@@ -37,7 +37,7 @@
 
 /* ------------------------------------------- RAW -> millivolts at the pin */
 
-#define ECG_RAW_TO_MV(raw)          ((int32_t)((int32_t)(raw) * VDDA_MV / ADC_FULL_SCALE_CODES))
+#define ECG_RAW_TO_MV(raw)              ADC_RAW_TO_MV(raw)
 
 /* ---------------------------------------------------------------- rail gate */
 

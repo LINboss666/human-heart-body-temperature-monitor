@@ -39,6 +39,14 @@
 /** Supply at the ADC reference pin, millivolts. Measure before trusting mV. */
 #define VDDA_MV                         3300U
 
+/**
+ * Shared primitive: a 12-bit code to millivolts at the ADC pin. Both the ECG
+ * and temperature paths need it, and neither should own the other's config.
+ * This is the pin, not the body-surface potential - see the front-end
+ * constants below for why those are not the same thing.
+ */
+#define ADC_RAW_TO_MV(raw)              ((int32_t)((int32_t)(raw) * VDDA_MV / ADC_FULL_SCALE_CODES))
+
 /*
  * ECG analog front-end transfer function, as far as the MCU knows it:
  *
