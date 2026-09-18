@@ -57,15 +57,20 @@
 
 /**
  * One "frame" is one TIM3 trigger, which converts both ranks: ECG then TEMP.
- * The DMA buffer therefore holds ADC_DMA_FRAME_COUNT * 2 half-words and its
- * length is even by construction, which is what keeps the channel interleave
- * aligned across the circular wrap.
+ * A block is therefore ACQ_FRAMES_PER_BLOCK * 2 half-words, and the length is
+ * even by construction - which is what keeps the ECG/temperature interleave
+ * aligned across the circular wrap. An odd buffer length would silently swap
+ * the two channels at every wrap.
  */
-#define ADC_DMA_FRAME_COUNT             128U
-#define ADC_DMA_WORD_COUNT              (ADC_DMA_FRAME_COUNT * 2U)
+#define ACQ_FRAMES_PER_BLOCK        128U
+#define ACQ_BLOCK_COUNT             2U
 
-/** Ring depth in frames used to decouple the DMA from the processing loop. */
-#define ACQ_BLOCK_COUNT                 2U
+/** Total DMA ring: 2 blocks, 2 channels per frame, 2 bytes per sample = 1024 B. */
+#define ADC_DMA_FRAME_COUNT         (ACQ_FRAMES_PER_BLOCK * ACQ_BLOCK_COUNT)
+#define ADC_DMA_WORD_COUNT          (ADC_DMA_FRAME_COUNT * 2U)
+
+/** One millisecond per frame at 1 kHz, so a block is 128 ms of signal. */
+#define ACQ_BLOCK_PERIOD_MS         ACQ_FRAMES_PER_BLOCK
 
 /* --------------------------------------------------------------- heartbeat */
 
