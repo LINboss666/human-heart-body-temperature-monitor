@@ -26,6 +26,12 @@ static uint16_t s_batch[ECG_BATCH_MAX_SAMPLES];
 static uint16_t s_batch_count;
 static uint32_t s_batch_first_index;
 
+/* A full-rate batch must fit the staging buffer it is built in, and a 20-sample
+ * batch must fit ECG_BATCH_MAX_SAMPLES. Both are configuration-time facts that
+ * would otherwise show up as memory corruption rather than a build failure. */
+typedef char ecg_batch_fits_payload[
+    (ECGP_SIZE(ECG_BATCH_MAX_SAMPLES) + ECGP_TAIL <= PKT_MAX_PAYLOAD) ? 1 : -1];
+
 /* Latest derived values, copied in from the most recent pushed sample. */
 static uint16_t s_temp_raw_latest;
 static int16_t  s_temp_centi_latest;

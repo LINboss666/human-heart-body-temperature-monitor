@@ -17,7 +17,7 @@ validated before the CRC position is computed.
 | --- | --- | --- | --- |
 | 0 | 1 | `magic0` | `0xA5` |
 | 1 | 1 | `magic1` | `0x5A` |
-| 2 | 1 | `version` | `0x01`; a mismatch is not a frame and the parser skips it |
+| 2 | 1 | `version` | `0x02`; a mismatch is not a frame and the parser skips it |
 | 3 | 1 | `type` | `pkt_type_t` |
 | 4 | 2 | `sequence` | per-direction counter, wraps at 65535, starts at 0 |
 | 6 | 2 | `length` | payload byte count, `0 … 64` |
@@ -80,7 +80,7 @@ exists; see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ### `ECG_BATCH` (the record)
 
-`n = sample_count`, `1 … 20`. Payload size = `7 + 2n + 7`.
+`n = sample_count`, `1 … 20`. Payload size = `7 + 2n + 8`.
 
 | Off | Size | Field |
 | --- | --- | --- |
@@ -98,7 +98,17 @@ exists; see [ARCHITECTURE.md](ARCHITECTURE.md).
 detect a gap: the next frame's index must be `first + n`. That is how a dropped
 block is found from the record alone, rather than trusting a status counter.
 
-With `n = 20`: payload 54, frame **68 bytes**.
+With `n = 20`: payload 55, frame **69 bytes**.
+
+`flags` is a full `u16` and all sixteen bits reach the host. It used to be one
+byte short: `ECGP_TAIL` was the hand-counted literal `7U` while the field table
+above needs `8`, and because `pkt_build()` computed the CRC over the same short
+length the frame verified cleanly and `status_flags_t` bits 8…15 were simply
+never transmitted. The constant is now derived (`ECGP_TAIL = ECGT_FLAGS + 2`) in
+both `protocol.h` and `pc_monitor/protocol.py`, and
+`tests/host/test_protocol.c::test_ecg_batch_tail` plus
+`pc_monitor/tests/test_protocol_vectors.py` pin the 69-byte frame. That correction
+is why the protocol version is `0x02`.
 
 ### `STATUS` (43 bytes payload, 57 byte frame)
 
@@ -177,19 +187,19 @@ At 230400 baud, 8N1 → 10 bits per byte → **23040 byte/s** of wire capacity.
 
 | Packet | Frame | Rate | Byte/s |
 | --- | --- | --- | --- |
-| `ECG_BATCH` (n=20) | 68 | 50/s | 3400 |
+| `ECG_BATCH` (n=20) | 69 | 50/s | 3450 |
 | `STATUS` | 57 | 2/s | 114 |
 | `TEMP_STATUS` | 22 | 2/s | 44 |
-| **steady-state total** | | | **3558** |
+| **steady-state total** | | | **3608** |
 
-**Utilisation 15.4 %** — a 6.5× margin. Worst case adds host commands and an
+**Utilisation 15.7 %** — a 6.4× margin. Worst case adds host commands and an
 occasional `ACK`/`RTC_RESPONSE` burst, under 4 % more.
 
-Per-second sample budget: 1000 ECG codes = 2000 byte/s of raw payload against
-3400 byte/s of framing+timestamps, i.e. 1.7 bytes of overhead per sample.
+Per-second sample budget: 1000 ECG codes = 2000 byte/s of raw payload inside
+3450 byte/s of `ECG_BATCH` frames, i.e. **1.45 bytes of overhead per sample**.
 
-Blocking-time budget: a 68-byte frame takes `68 × 10 / 230400` = **2.95 ms**
-inside `HAL_UART_Transmit`. At 50 frames/s the main loop spends ~14.7 % of its
+Blocking-time budget: a 69-byte frame takes `69 × 10 / 230400` = **3.0 ms**
+inside `HAL_UART_Transmit`. At 50 frames/s the main loop spends ~15.0 % of its
 time transmitting. The ADC path is unaffected because TIM3 triggers the ADC and
 the DMA moves the results in hardware; the 512-byte double block gives 256 ms of
 slack between completion interrupts, versus a worst-case multi-ms stall. Every

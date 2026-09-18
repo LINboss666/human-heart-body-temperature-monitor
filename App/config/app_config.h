@@ -15,7 +15,9 @@
 #define FW_VERSION_MINOR              0U
 #define FW_VERSION_PATCH              0U
 #define FW_VERSION_STRING             "1.0.0-phase1"
-#define PROTOCOL_VERSION              0x01U
+/* 2: ECG_BATCH's tail was widened from 7 to 8 bytes so the whole status_flags_t
+ * word is transmitted. Version 1 was never flashed, so nothing must parse it. */
+#define PROTOCOL_VERSION              0x02U
 
 /* ------------------------------------------------------------- clock domain */
 /* Informational only; the real values live in the generated SystemClock_Config.

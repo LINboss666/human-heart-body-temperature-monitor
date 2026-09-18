@@ -25,8 +25,8 @@
  * located.
  *
  * Bandwidth at the default configuration (docs/PROTOCOL.md derives this in full):
- * 50 ECG_BATCH/s at 70 bytes plus 2 STATUS/s at 53 bytes is 3608 byte/s against
- * a 23040 byte/s line, i.e. 15.7 % utilisation.
+ * 50 ECG_BATCH/s at 69 bytes, 2 STATUS/s at 57 bytes and 2 TEMP_STATUS/s at 22
+ * bytes is 3608 byte/s against a 23040 byte/s line, i.e. 15.7 % utilisation.
  */
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
@@ -82,13 +82,18 @@ typedef enum {
 #define ECGP_SAMPLES            7U   /* u16[n] raw ADC codes */
 #define ECGP_SIZE(n)            (ECGP_SAMPLES + (n) * 2U)
 
-/* Fixed tail that follows the samples; total payload = ECGP_SIZE(n) + 7. */
+/* Fixed tail that follows the samples; total payload = ECGP_SIZE(n) + ECGP_TAIL.
+ * ECGP_TAIL is derived from the widest tail field instead of being hand-counted:
+ * the literal 7 it used to carry matched the four u8/u16 fields below but not the
+ * trailing u16, so ECGT_FLAGS was written two bytes deep and sent one byte wide.
+ * CRC still passed, so nothing complained and status_flags_t bits 8..15 simply
+ * never reached the host. */
 #define ECGT_TEMP_RAW           0U   /* u16  most recent temperature code */
 #define ECGT_TEMP_CENTI         2U   /* i16  only meaningful if flags say so */
 #define ECGT_HR_BPM             4U   /* u8   0 when invalid */
 #define ECGT_HR_STATE           5U   /* u8   hr_state_t */
 #define ECGT_FLAGS              6U   /* u16  status_flags_t */
-#define ECGP_TAIL               7U
+#define ECGP_TAIL               (ECGT_FLAGS + 2U)
 
 /* --------------------------------------------------------- TEMP_STATUS body */
 

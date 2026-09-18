@@ -236,6 +236,79 @@ static void test_corruption(void)
     CHECK_EQ(pkt_parse(frame, made, &got, &consumed), PKT_NEED_MORE);
 }
 
+/*
+ * send_ecg_batch() is static in protocol_service.c and that file needs the HAL,
+ * so the tail fill is deliberately duplicated here. What is under test is the
+ * agreement between the length the firmware sends and the offsets it writes at,
+ * which is precisely the check a hand-counted ECGP_TAIL of 7 defeated: the CRC
+ * was computed over the same short length, so the frame verified cleanly while
+ * status_flags_t bits 8..15 never left the buffer.
+ */
+static void test_ecg_batch_tail(void)
+{
+    uint8_t     frame[PKT_MAX_FRAME];
+    uint8_t     payload[PKT_MAX_PAYLOAD];
+    pkt_frame_t got;
+    const uint8_t *t;
+    uint16_t consumed = 0U;
+    uint16_t made, off, flags;
+    uint16_t i;
+    const uint16_t n = ECG_BATCH_MAX_SAMPLES;
+
+    CTEST_CASE("ECGP_TAIL covers the widest tail field, by construction");
+    CHECK_EQ(ECGP_TAIL, ECGT_FLAGS + 2U);
+    CHECK_EQ(ECGP_SIZE(n) + ECGP_TAIL, (uint16_t)(ECGP_SAMPLES + 2U * n + ECGT_FLAGS + 2U));
+    CHECK(ECGP_SIZE(n) + ECGP_TAIL <= PKT_MAX_PAYLOAD);
+
+    memset(payload, 0, sizeof(payload));
+    payload[ECGP_COUNT] = (uint8_t)n;
+    pkt_put_u16(&payload[ECGP_PERIOD_US], (uint16_t)ADC_SAMPLE_PERIOD_US);
+    pkt_put_u32(&payload[ECGP_FIRST_INDEX], 0x12345678UL);
+    for (i = 0U; i < n; i++) {
+        pkt_put_u16(&payload[ECGP_SAMPLES + i * 2U], (uint16_t)(0x800U + i));
+    }
+    off = ECGP_SIZE(n);
+    pkt_put_u16(&payload[off + ECGT_TEMP_RAW], 2048U);
+    pkt_put_i16(&payload[off + ECGT_TEMP_CENTI], 3667);
+    payload[off + ECGT_HR_BPM] = 72U;
+    payload[off + ECGT_HR_STATE] = (uint8_t)HR_NORMAL;
+    /* Every bit set, including the four that live in the high byte. */
+    flags = (uint16_t)(SFLAG_OLED | SFLAG_ADC_RUNNING | SFLAG_RTC_VALID |
+                       SFLAG_DMA_DROPPED | SFLAG_TEMP_UNCALIB | SFLAG_HR_VALID |
+                       SFLAG_RECORDING |
+                       ((uint16_t)HR_NORMAL << 0) | ((uint16_t)TEMP_OK << 3) |
+                       SFLAG_LEAD_MASK | SFLAG_NOTCH_MASK);
+    pkt_put_u16(&payload[off + ECGT_FLAGS], flags);
+
+    made = pkt_build(frame, sizeof(frame), PKT_ECG_BATCH, 1U, 42U,
+                     payload, (uint16_t)(off + ECGP_TAIL));
+
+    CTEST_CASE("a full-rate ECG_BATCH frame is the documented 69 bytes");
+    CHECK_EQ(made, 69U);
+    CHECK_EQ(made, (uint16_t)(PKT_OVERHEAD + ECGP_SIZE(n) + ECGP_TAIL));
+
+    CTEST_CASE("the tail reads back unchanged through the parser");
+    CHECK_EQ(pkt_parse(frame, made, &got, &consumed), PKT_OK);
+    CHECK_EQ(consumed, made);
+    t = &got.payload[off];
+    CHECK_EQ(pkt_get_u16(&t[ECGT_TEMP_RAW]), 2048U);
+    CHECK_EQ(pkt_get_i16(&t[ECGT_TEMP_CENTI]), 3667);
+    CHECK_EQ(t[ECGT_HR_BPM], 72U);
+    CHECK_EQ(t[ECGT_HR_STATE], (uint8_t)HR_NORMAL);
+    CHECK_EQ(pkt_get_u16(&t[ECGT_FLAGS]), flags);
+
+    CTEST_CASE("status_flags_t bit 8 and above reach the far end of the frame");
+    {
+        uint16_t back = pkt_get_u16(&t[ECGT_FLAGS]);
+        CHECK((back & SFLAG_OLED) != 0U);
+        CHECK((back & SFLAG_ADC_RUNNING) != 0U);
+        CHECK((back & SFLAG_RTC_VALID) != 0U);
+        CHECK((back & SFLAG_DMA_DROPPED) != 0U);
+        CHECK((back & SFLAG_TEMP_UNCALIB) != 0U);
+        CHECK_EQ((back & SFLAG_NOTCH_MASK) >> SFLAG_NOTCH_SHIFT, 3U);
+    }
+}
+
 /* CTEST_MAIN supplies main() and opens ctest_run_all(). */
 CTEST_MAIN("protocol+crc16")
 {
@@ -246,4 +319,5 @@ CTEST_MAIN("protocol+crc16")
     test_leading_garbage();
     test_back_to_back();
     test_corruption();
+    test_ecg_batch_tail();
 }

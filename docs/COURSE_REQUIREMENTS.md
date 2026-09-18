@@ -78,7 +78,7 @@ physical display is marked as satisfied.
 | Requirement | Implementation | Status |
 | --- | --- | --- |
 | Data communication | Binary framed protocol over USART1 at 230400 8N1; no `printf` CSV on the wire | `SOFTWARE IMPLEMENTED` |
-| Bandwidth must be proven, not assumed | 50 × 68 B ECG_BATCH + 2 × 57 B STATUS + 2 × 22 B TEMP_STATUS = **3558 B/s of 23040 B/s = 15.4 %** | `HOST VERIFIED` (arithmetic in [PROTOCOL.md](PROTOCOL.md)) |
+| Bandwidth must be proven, not assumed | 50 × 69 B ECG_BATCH + 2 × 57 B STATUS + 2 × 22 B TEMP_STATUS = **3608 B/s of 23040 B/s = 15.7 %** | `HOST VERIFIED` (arithmetic in [PROTOCOL.md](PROTOCOL.md)) |
 | Integrity | Magic + version + length + sequence + CRC16; resync on corruption | `HOST VERIFIED`: 574 assertions across C and Python |
 | PC real-time waveform | PySide6 + pyqtgraph, 10 s rolling window | See [../pc_monitor/README.md](../pc_monitor/README.md) |
 | ≥ 10 s continuous recording | Recording is a state with a session timer; the 1 kHz stream is continuous | `SOFTWARE IMPLEMENTED` · `HARDWARE VERIFICATION PENDING` (Stage M) |
