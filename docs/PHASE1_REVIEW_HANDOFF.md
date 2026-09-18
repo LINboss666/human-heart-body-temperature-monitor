@@ -4,7 +4,7 @@
 | --- | --- |
 | Repository | https://github.com/LINboss666/human-heart-body-temperature-monitor (public) |
 | Branch under review | `phase1/full-system` |
-| HEAD | `9e3f435` |
+| Code HEAD | `9e3f435` — review everything up to and including this commit; this document is committed on top of it and changes no code |
 | Phase 0 baseline | tag `v0.1-baseline` → commit `eb8a795` (**do not move**) |
 | Change since baseline | 116 files, +24318 / −248 |
 | Firmware build | `0 Error(s), 0 Warning(s)` — ARMCC V5.06 update5, `-O3`, warning level 2, **no warnings suppressed** |
