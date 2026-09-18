@@ -11,7 +11,6 @@ static uint8_t   s_rr_count;
 static uint8_t   s_rr_next;
 static uint32_t  s_last_beat_index;
 static bool      s_have_last;
-static uint32_t  s_sample_index;
 static uint16_t  s_low_bpm;
 static uint16_t  s_high_bpm;
 static ecg_hr_t  s_current;
@@ -51,7 +50,6 @@ void ecg_hr_reset(uint16_t low_bpm, uint16_t high_bpm)
     s_rr_next = 0U;
     s_have_last = false;
     s_last_beat_index = 0U;
-    s_sample_index = 0U;
     s_low_bpm = low_bpm;
     s_high_bpm = high_bpm;
 
@@ -113,7 +111,6 @@ static void go_invalid(void)
 
 void ecg_hr_tick(uint32_t sample_index, ecg_hr_t *out)
 {
-    s_sample_index = sample_index;
 
     if (s_current.beats == 0U) {
         /* Nothing has ever been detected: showing ACQUIRING here would already be
@@ -150,7 +147,6 @@ void ecg_hr_notify_beat(uint32_t sample_index, ecg_hr_t *out)
     uint32_t rr;
 
     s_current.beats++;
-    s_sample_index = sample_index;
 
     if (!s_have_last) {
         s_have_last = true;

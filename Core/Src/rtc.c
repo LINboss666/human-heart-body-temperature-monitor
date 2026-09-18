@@ -21,7 +21,7 @@
 #include "rtc.h"
 
 /* USER CODE BEGIN 0 */
-
+#include "rtc_service/rtc_service.h"
 /* USER CODE END 0 */
 
 RTC_HandleTypeDef hrtc;
@@ -31,7 +31,9 @@ void MX_RTC_Init(void)
 {
 
   /* USER CODE BEGIN RTC_Init 0 */
-
+  /* CubeMX resets the calendar unconditionally below. Snapshot the running clock
+   * first so rtc_service_restore() can put it back after MX_RTC_Init returns. */
+  rtc_service_preserve();
   /* USER CODE END RTC_Init 0 */
 
   RTC_TimeTypeDef sTime = {0};
@@ -75,7 +77,7 @@ void MX_RTC_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN RTC_Init 2 */
-
+  rtc_service_restore();
   /* USER CODE END RTC_Init 2 */
 
 }

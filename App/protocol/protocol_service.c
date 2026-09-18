@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "stm32f1xx_hal.h"
+
 #include "app_config.h"
 #include "diagnostics/diagnostics.h"
 #include "protocol/protocol.h"

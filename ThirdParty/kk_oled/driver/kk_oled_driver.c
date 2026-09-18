@@ -3,18 +3,24 @@
 #include "i2c.h"
 #include "kk_oled_internal.h"
 
+#include "oled_bus.h"
+
 #include <string.h>
 
 /* 当前文件是固定硬件适配边界：STM32 HAL、I2C1 与 CH1116 参数均集中在此。 */
 
 /** HAL 使用左移一位后的 8 位形式设备地址。 */
-#define OLED_I2C_ADDRESS ((uint16_t)(0x3DU << 1U))
+/* LOCAL MODIFICATION: the address and column offset are no longer literals here.
+ * Which panel is fitted is unknown, so App/display/oled_bus.h owns the candidate
+ * profiles and the I2C address scan, and this file's own documented role is the
+ * hardware adaptation boundary. See docs/UPSTREAM.md. */
+#define OLED_I2C_ADDRESS oled_bus_address_8bit
 /** I2C Memory Address 字节：后续内容为 CH1116 命令。 */
 #define OLED_CONTROL_COMMAND 0x00U
 /** I2C Memory Address 字节：后续内容为显示数据。 */
 #define OLED_CONTROL_DATA 0x40U
 /** 模组可见第 0 列相对 CH1116 内部显存的列偏移。 */
-#define OLED_COLUMN_OFFSET 2U
+#define OLED_COLUMN_OFFSET oled_bus_column_offset
 /** 所有阻塞 I2C 调用的最长等待时间。 */
 #define OLED_BLOCKING_TIMEOUT_MS 100U
 
@@ -99,25 +105,12 @@ static bool oled_find_next_page(uint8_t first, uint8_t *page)
  */
 OLED_Status OLED_DriverInit(void)
 {
-    /* 实物验证过的 CH1116 初始化序列，首字节 AE 保持显示关闭。 */
-    static const uint8_t init_commands[] = {
-        0xAEU,
-        0x02U, 0x10U,
-        0x40U,
-        0xB0U,
-        0x81U, 0xCFU,
-        0xA1U,
-        0xA6U,
-        0xA8U, 0x3FU,
-        0xADU, 0x8BU,
-        0x33U,
-        0xC8U,
-        0xD3U, 0x00U,
-        0xD5U, 0xC0U,
-        0xD9U, 0x1FU,
-        0xDAU, 0x12U,
-        0xDBU, 0x40U
-    };
+    /* LOCAL MODIFICATION: the command block comes from App/display/oled_bus.c so the
+     * controller profile is one table rather than an edit in vendored code. The
+     * original CH1116 sequence is preserved there as one of three candidates. */
+    uint16_t init_len;
+    const uint8_t *init_commands = oled_bus_init_sequence(&init_len);
+
     static const uint8_t zeros[OLED_PHYSICAL_WIDTH] = {0}; /**< 初始化清屏数据。 */
     uint8_t page; /**< 当前清零页。 */
 
@@ -128,7 +121,7 @@ OLED_Status OLED_DriverInit(void)
     oled_driver_mode = OLED_DRIVER_MODE_NONE;
     HAL_Delay(20U);
 
-    if (oled_send_command_blocking(init_commands, sizeof(init_commands)) != HAL_OK) {
+    if (oled_send_command_blocking(init_commands, init_len) != HAL_OK) {
         oled_driver_busy = false;
         return OLED_ERROR;
     }

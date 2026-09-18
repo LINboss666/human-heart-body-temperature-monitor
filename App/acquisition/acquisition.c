@@ -48,7 +48,10 @@ bool acquisition_start(void)
     }
     s_calibrated = true;
 
-    if (HAL_ADC_Start_DMA(&hadc1, s_buffer, ADC_DMA_WORD_COUNT) != HAL_OK) {
+    /* HAL_ADC_Start_DMA takes a uint32_t * even though the stream is configured
+     * for half-word transfers: the pointer type is not a transfer-width claim,
+     * and this is the same cast the CubeMX-generated calls use. */
+    if (HAL_ADC_Start_DMA(&hadc1, (uint32_t *)s_buffer, ADC_DMA_WORD_COUNT) != HAL_OK) {
         return false;
     }
 
