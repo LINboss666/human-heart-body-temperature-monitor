@@ -1,0 +1,17 @@
+# Keep line endings stable for anything a tool regenerates, and never let Git
+# touch binary assets.
+*.c text eol=crlf
+*.h text eol=crlf
+*.py text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+*.ioc text eol=lf
+*.uvprojx text eol=crlf
+*.uvoptx text eol=crlf
+*.s text eol=crlf
+*.png binary
+*.bmp binary
+*.xlsx binary
+*.docx binary
+# Vendored upstream sources: diffable but never silently reformatted.
+ThirdParty/** text eol=lf
