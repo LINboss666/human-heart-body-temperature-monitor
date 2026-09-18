@@ -11,11 +11,11 @@ it is called out.
 
 | Field | Value |
 | --- | --- |
-| Repository | `PENDING` (filled in the commit that records the pushed URL) |
+| Repository | https://github.com/LINboss666/human-heart-body-temperature-monitor (PUBLIC) |
 | Visibility | PUBLIC |
 | Branch | `main` |
-| Baseline commit | `PENDING` |
-| Tag | `v0.1-baseline` (annotated) |
+| Baseline commit | `eb8a795e153ad72cf96d0bf6a71792f5fbfe0427` |
+| Tag | `v0.1-baseline` (annotated, tag object `a8d206826de71c0b3a181b64cd12cb91cbb681e7`) |
 | MCU | STM32F103C8T6, LQFP48, Cortex-M3, 64 KB Flash / 20 KB SRAM |
 | STM32CubeMX version | **6.17.0** (`MxCube.Version`), DB `DB.6.0.170`, `.ioc` format v6 |
 | STM32CubeF1 firmware | **STM32Cube FW_F1 V1.8.7** (`ProjectManager.FirmwarePackage`) |
@@ -24,6 +24,12 @@ it is called out.
 | Build status | **`0 Error(s), 0 Warning(s)`** on a from-scratch `UV4 -j0 -r` rebuild; `Code=6804 RO-data=328 RW-data=16 ZI-data=2000` |
 
 See [BUILD.md](BUILD.md) for why the build status is re-verified rather than inherited.
+
+**Review the tag, not `main`.** A git commit cannot contain its own hash, so the baseline is
+commit `eb8a795e…` — tagged `v0.1-baseline` — and this file received its hash and URL in one
+follow-up documentation commit. Review `git checkout v0.1-baseline`; the difference between the
+tag and `main` head should be exactly the provenance values in the table above and nothing else.
+Confirm with `git diff v0.1-baseline..main`.
 
 ---
 
