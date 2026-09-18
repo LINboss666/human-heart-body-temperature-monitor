@@ -34,7 +34,10 @@ INCLUDES = [
     ROOT / "App" / "temperature",
     ROOT / "App" / "rtc_service",
     ROOT / "tests" / "host",
+    ROOT / "App" / "ui",
     ROOT / "ThirdParty" / "kk_oled" / "include",
+    ROOT / "ThirdParty" / "kk_oled" / "driver",
+    ROOT / "ThirdParty" / "kk_oled" / "graphics",
 ]
 
 # Sources linked into every test, plus any test-specific extra sources.
@@ -56,6 +59,12 @@ EXTRA_SOURCES = {
     ],
     "test_temperature_calibrated.c": [
         ROOT / "App" / "temperature" / "temperature.c",
+    ],
+    # The vendor decoder, unmodified, run against the generated font arrays.
+    "test_font_format.c": [
+        ROOT / "ThirdParty" / "kk_oled" / "graphics" / "kk_oled_font.c",
+        ROOT / "App" / "ui" / "ui_fonts.c",
+        ROOT / "tests" / "host" / "kk_oled_font_stubs.c",
     ],
 }
 
