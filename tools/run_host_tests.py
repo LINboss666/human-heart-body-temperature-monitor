@@ -63,6 +63,11 @@ CFLAGS = [
     "-Wno-unused-parameter",
 ]
 
+# Per-test link needs: maths for the synthetic stimulus in the ECG test.
+EXTRA_LIBS = {
+    "test_ecg_pipeline.c": ["-lm"],
+}
+
 
 def zig_cc() -> list[str]:
     return [sys.executable, "-m", "ziglang", "cc"]
@@ -72,7 +77,8 @@ def build_one(test_src: Path, verbose: bool) -> tuple[Path | None, str]:
     exe = BUILD_DIR / (test_src.stem + ".exe")
     sources = [str(p) for p in COMMON_SOURCES]
     sources += [str(p) for p in EXTRA_SOURCES.get(test_src.name, [])]
-    cmd = zig_cc() + CFLAGS + [f"-I{p}" for p in INCLUDES] + sources + [str(test_src), "-o", str(exe)]
+    cmd = (zig_cc() + CFLAGS + [f"-I{p}" for p in INCLUDES] + sources
+           + [str(test_src)] + EXTRA_LIBS.get(test_src.name, []) + ["-o", str(exe)])
     if verbose:
         print("  " + " ".join(cmd))
     proc = subprocess.run(cmd, capture_output=True, text=True)
