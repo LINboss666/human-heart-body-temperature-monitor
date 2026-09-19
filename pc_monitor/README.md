@@ -1,5 +1,7 @@
 # `pc_monitor` — PC host tool
 
+**English** · [中文](README.zh-CN.md)
+
 Realtime display, recording and export for the STM32 ECG + body-temperature
 monitor. It speaks the binary framing in
 [`docs/PROTOCOL.md`](../docs/PROTOCOL.md) over USART1 at 230400 baud, and mirrors

@@ -1,5 +1,7 @@
 # Hardware Test Plan — bring-up stages A…O
 
+**English** · [中文](HARDWARE_TEST_PLAN.zh-CN.md)
+
 For use the first time a real board exists. Each stage says what to connect, what to
 type or press, what a pass looks like, and what the most likely cause is when it does
 not pass. Every stage has a **software-only fallback** so a missing oscilloscope or

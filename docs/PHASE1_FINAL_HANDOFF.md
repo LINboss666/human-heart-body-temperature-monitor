@@ -1,5 +1,7 @@
 # Phase 1 final fix handoff
 
+**English** · [中文](PHASE1_FINAL_HANDOFF.zh-CN.md)
+
 The last software correction pass before hardware bring-up. Three subjects only: RTC
 register synchronisation before any counter read, the backup-register anchor's behaviour
 under a torn write, and the temperature probe fault/recovery response time. No feature

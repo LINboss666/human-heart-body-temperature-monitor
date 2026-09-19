@@ -1,5 +1,7 @@
 # Phase 1 — independent review handoff
 
+**English** · [中文](PHASE1_REVIEW_HANDOFF.zh-CN.md)
+
 | | |
 | --- | --- |
 | Repository | https://github.com/LINboss666/human-heart-body-temperature-monitor (public) |

@@ -1,5 +1,7 @@
 # Architecture — Phase 1
 
+**English** · [中文](ARCHITECTURE.zh-CN.md)
+
 No RTOS, no heap, cooperative super-loop, on STM32F103C8T6 (64 KB flash / 20 KB RAM).
 
 ## Data flow

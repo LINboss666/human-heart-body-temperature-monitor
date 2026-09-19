@@ -1,5 +1,7 @@
 # USART1 Binary Link Protocol — v1
 
+**English** · [中文](PROTOCOL.zh-CN.md)
+
 Defined once in [`App/protocol/protocol.h`](../App/protocol/protocol.h). The PC
 mirror is [`pc_monitor/protocol.py`](../pc_monitor/protocol.py) and
 `pc_monitor/tests/test_protocol_vectors.py` fails if the two disagree, so this

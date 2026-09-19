@@ -1,5 +1,7 @@
 # Upstream Third-Party Code
 
+**English** · [中文](UPSTREAM.zh-CN.md)
+
 This repository vendors two upstream projects instead of fetching them at build
 time, because the target is an offline Keil MDK-ARM build with no package
 manager. Both are MIT-licensed, and the licence files are shipped unmodified
