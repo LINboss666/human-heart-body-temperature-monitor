@@ -43,6 +43,30 @@ int16_t pkt_get_i16(const uint8_t *p)
     return (int16_t)pkt_get_u16(p);
 }
 
+void pkt_write_batch_tail(uint8_t *p, const pkt_batch_tail_t *t)
+{
+    if (p == NULL || t == NULL) {
+        return;
+    }
+    pkt_put_u16(&p[ECGT_TEMP_RAW], t->temp_raw);
+    pkt_put_i16(&p[ECGT_TEMP_CENTI], t->temp_centi);
+    p[ECGT_HR_BPM] = t->hr_bpm;
+    p[ECGT_HR_STATE] = t->hr_state;
+    pkt_put_u16(&p[ECGT_FLAGS], t->flags);
+}
+
+void pkt_read_batch_tail(const uint8_t *p, pkt_batch_tail_t *t)
+{
+    if (p == NULL || t == NULL) {
+        return;
+    }
+    t->temp_raw   = pkt_get_u16(&p[ECGT_TEMP_RAW]);
+    t->temp_centi = pkt_get_i16(&p[ECGT_TEMP_CENTI]);
+    t->hr_bpm     = p[ECGT_HR_BPM];
+    t->hr_state   = p[ECGT_HR_STATE];
+    t->flags      = pkt_get_u16(&p[ECGT_FLAGS]);
+}
+
 /* ---------------------------------------------------------------- builders */
 
 uint16_t pkt_build(uint8_t *dst, uint16_t dst_len, uint8_t type,

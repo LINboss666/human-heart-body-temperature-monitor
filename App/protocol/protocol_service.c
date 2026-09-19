@@ -33,8 +33,6 @@ typedef char ecg_batch_fits_payload[
     (ECGP_SIZE(ECG_BATCH_MAX_SAMPLES) + ECGP_TAIL <= PKT_MAX_PAYLOAD) ? 1 : -1];
 
 /* Latest derived values, copied in from the most recent pushed sample. */
-static uint16_t s_temp_raw_latest;
-static int16_t  s_temp_centi_latest;
 static uint8_t  s_hr_bpm_latest;
 static uint8_t  s_hr_state_latest;
 static bool     s_hr_valid_latest;
@@ -133,7 +131,6 @@ static void send_ecg_batch(uint32_t now_ms)
     uint8_t  *p = s_payload;
     uint16_t  n = s_batch_count;
     uint16_t  off;
-    uint16_t  flags;
     const diagnostics_t *d = diagnostics();
 
     if (n == 0U) {
@@ -148,26 +145,34 @@ static void send_ecg_batch(uint32_t now_ms)
     }
 
     off = ECGP_SIZE(n);
-    pkt_put_u16(&p[off + ECGT_TEMP_RAW], s_temp_raw_latest);
-    pkt_put_i16(&p[off + ECGT_TEMP_CENTI], s_temp_centi_latest);
-    p[off + ECGT_HR_BPM] = s_hr_bpm_latest;
-    p[off + ECGT_HR_STATE] = s_hr_state_latest;
+    {
+        /* Temperature comes from the diagnostics snapshot rather than a per-sample
+         * argument. It refreshes once per acquisition block, which is far coarser
+         * than the 20 ms a batch spans and irrelevant for a signal decimated to
+         * one update per 250 ms - and unlike the argument it replaced, it cannot
+         * be left at zero by a caller that passed NULL. */
+        pkt_batch_tail_t tail;
 
-    flags = 0U;
-    flags = SFLAG_SET(flags, SFLAG_LEAD_SHIFT, SFLAG_LEAD_MASK,
-                      (uint16_t)d->lead_state);
-    flags = SFLAG_SET(flags, SFLAG_TEMP_SHIFT, SFLAG_TEMP_MASK,
-                      (uint16_t)d->temp_state);
-    flags = SFLAG_SET(flags, SFLAG_NOTCH_SHIFT, SFLAG_NOTCH_MASK,
-                      (uint16_t)s_notch);
-    if (s_hr_valid_latest)      { flags |= SFLAG_HR_VALID; }
-    if (d->recording)           { flags |= SFLAG_RECORDING; }
-    if (d->oled_present)        { flags |= SFLAG_OLED; }
-    if (d->adc_running)         { flags |= SFLAG_ADC_RUNNING; }
-    if (d->rtc_valid)           { flags |= SFLAG_RTC_VALID; }
-    if (d->dma_dropped != 0U)   { flags |= SFLAG_DMA_DROPPED; }
-    if (d->temp_uncalibrated)   { flags |= SFLAG_TEMP_UNCALIB; }
-    pkt_put_u16(&p[off + ECGT_FLAGS], flags);
+        tail.temp_raw   = d->temp_raw;
+        tail.temp_centi = d->temp_centi;
+        tail.hr_bpm     = s_hr_bpm_latest;
+        tail.hr_state   = s_hr_state_latest;
+        tail.flags = 0U;
+        tail.flags = SFLAG_SET(tail.flags, SFLAG_LEAD_SHIFT, SFLAG_LEAD_MASK,
+                               (uint16_t)d->lead_state);
+        tail.flags = SFLAG_SET(tail.flags, SFLAG_TEMP_SHIFT, SFLAG_TEMP_MASK,
+                               (uint16_t)d->temp_state);
+        tail.flags = SFLAG_SET(tail.flags, SFLAG_NOTCH_SHIFT, SFLAG_NOTCH_MASK,
+                               (uint16_t)s_notch);
+        if (s_hr_valid_latest)      { tail.flags |= SFLAG_HR_VALID; }
+        if (d->recording)           { tail.flags |= SFLAG_RECORDING; }
+        if (d->oled_present)        { tail.flags |= SFLAG_OLED; }
+        if (d->adc_running)         { tail.flags |= SFLAG_ADC_RUNNING; }
+        if (d->rtc_valid)           { tail.flags |= SFLAG_RTC_VALID; }
+        if (d->dma_dropped != 0U)   { tail.flags |= SFLAG_DMA_DROPPED; }
+        if (d->temp_uncalibrated)   { tail.flags |= SFLAG_TEMP_UNCALIB; }
+        pkt_write_batch_tail(&p[off], &tail);
+    }
 
     (void)send_frame(PKT_ECG_BATCH, p, (uint16_t)(off + ECGP_TAIL), now_ms);
     s_batch_count = 0U;
@@ -333,8 +338,7 @@ void protocol_service_init(void)
     uart_link_init();
 }
 
-void protocol_service_push_sample(const ecg_sample_t *ecg, const ecg_hr_t *hr,
-                                  const temperature_t *temp)
+void protocol_service_push_sample(const ecg_sample_t *ecg, const ecg_hr_t *hr)
 {
     if (ecg == NULL) {
         return;
@@ -360,10 +364,6 @@ void protocol_service_push_sample(const ecg_sample_t *ecg, const ecg_hr_t *hr,
     s_hr_bpm_latest = hr != NULL ? hr->bpm : 0U;
     s_hr_state_latest = hr != NULL ? (uint8_t)hr->state : (uint8_t)HR_INVALID;
     s_hr_valid_latest = (hr != NULL) && hr->valid;
-    if (temp != NULL) {
-        s_temp_raw_latest = temp->raw;
-        s_temp_centi_latest = temp->centi_c;
-    }
 
     if (s_streaming && s_batch_count >= ECG_BATCH_MAX_SAMPLES) {
         send_ecg_batch((uint32_t)HAL_GetTick());

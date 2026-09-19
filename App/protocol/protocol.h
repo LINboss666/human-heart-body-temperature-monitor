@@ -95,6 +95,27 @@ typedef enum {
 #define ECGT_FLAGS              6U   /* u16  status_flags_t */
 #define ECGP_TAIL               (ECGT_FLAGS + 2U)
 
+/**
+ * The decoded ECG_BATCH trailer.
+ *
+ * Written as its own type so the offsets are applied by one function on each
+ * side rather than by arithmetic sprinkled through the caller: the defect this
+ * replaced was a length constant that disagreed with the field table by one
+ * byte, and a caller-side offset computation is how that stays invisible.
+ */
+typedef struct {
+    uint16_t temp_raw;
+    int16_t  temp_centi;
+    uint8_t  hr_bpm;
+    uint8_t  hr_state;
+    uint16_t flags;
+} pkt_batch_tail_t;
+
+/** Write `t` to the ECGP_TAIL bytes starting at `p`. */
+void pkt_write_batch_tail(uint8_t *p, const pkt_batch_tail_t *t);
+/** Inverse of pkt_write_batch_tail(); used by the host tests and by the PC. */
+void pkt_read_batch_tail(const uint8_t *p, pkt_batch_tail_t *t);
+
 /* --------------------------------------------------------- TEMP_STATUS body */
 
 #define TEMPP_RAW               0U   /* u16 */

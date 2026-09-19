@@ -134,7 +134,10 @@ class RecordingSummary:
     hr_mean: float | None
     hr_min: int | None
     hr_max: int | None
-    temp_valid_rows: int
+    #: Batches, not samples: one ECG_BATCH carries one temperature reading,
+    #: exactly like hr_valid_reports below. Named "rows" it understated by the
+    #: batch size wherever a Summary was read.
+    temp_valid_reports: int
     temp_mean_c: float | None
     temp_min_c: float | None
     temp_max_c: float | None
@@ -363,7 +366,7 @@ class RecordingSession:
             hr_mean=(sum(valid_hr) / len(valid_hr)) if valid_hr else None,
             hr_min=min(valid_hr) if valid_hr else None,
             hr_max=max(valid_hr) if valid_hr else None,
-            temp_valid_rows=len(temps_c),
+            temp_valid_reports=len(temps_c),
             temp_mean_c=(sum(temps_c) / len(temps_c)) if temps_c else None,
             temp_min_c=min(temps_c) if temps_c else None,
             temp_max_c=max(temps_c) if temps_c else None,

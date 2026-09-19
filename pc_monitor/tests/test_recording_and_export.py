@@ -19,7 +19,8 @@ from pc_monitor import recorder
 from pc_monitor.recorder import RecordingSession, reconcile_hr, temp_certified
 
 
-def batch_frame(first_index, seq, *, samples=None, flags=None, temp_centi=3667,
+def batch_frame(first_index, seq, *, samples=None, flags=None, temp_raw=1731,
+                temp_centi=3667,
                 temp_state=int(p.TempState.UNCALIBRATED), hr_bpm=72, hr_valid=True,
                 ts=None):
     if flags is None:
@@ -32,7 +33,7 @@ def batch_frame(first_index, seq, *, samples=None, flags=None, temp_centi=3667,
     payload = p.EcgBatch.encode(
         first_sample_index=first_index,
         samples=samples if samples is not None else [2048 + (i % 5) for i in range(20)],
-        temp_raw=1731, temp_centi=temp_centi, hr_bpm=hr_bpm,
+        temp_raw=temp_raw, temp_centi=temp_centi, hr_bpm=hr_bpm,
         hr_state=int(p.HrState.NORMAL), flags=flags,
     )
     raw = p.encode_frame(p.PacketType.ECG_BATCH, seq,
@@ -128,7 +129,7 @@ class TestUncalibratedTemperature:
         assert summary.temp_uncalibrated is True
         assert summary.temp_mean_c is None
         assert summary.temp_min_c is None
-        assert summary.temp_valid_rows == 0
+        assert summary.temp_valid_reports == 0
 
 
 class TestHeartRateHonesty:
@@ -180,6 +181,80 @@ class TestGapsAndProvenance:
         rows = list(demo.iter_rows())
         assert {r[16] for r in rows} == {recorder.DEMO_ORIGIN}
         assert demo.is_demo is True
+
+
+class TestTemperatureIsPerBatch:
+    """What the firmware fix has to produce, checked from the receiving end.
+
+    ECG_BATCH's temperature trailer was broken on the device side: it carried a
+    permanent zero because the only writer of it sat behind a pointer the caller
+    passed NULL for. These cases pin that the PC records exactly what each batch
+    carried -- so a stuck field is visible in the export instead of being
+    smoothed over -- and that the two temperature channels are never merged.
+    """
+
+    def test_each_batch_contributes_its_own_temperature_to_its_own_rows(self, session):
+        for i, raw in enumerate((1200, 1731, 2050)):
+            frame, batch = batch_frame(i * 20, i, temp_raw=raw, temp_centi=3000 + i)
+            session.add_batch(frame, batch)
+        rows = list(session.iter_rows())
+        per_batch = [rows[i * 20][7] for i in range(3)]
+        assert per_batch == [1200, 1731, 2050], \
+            "the recorder reused one batch's temperature for all of them"
+
+    def test_a_stuck_zero_from_the_device_is_recorded_as_zero_not_filled_in(self, session):
+        frame, batch = batch_frame(0, 0, temp_raw=0, temp_centi=0)
+        session.add_batch(frame, batch)
+        rows = list(session.iter_rows())
+        assert {r[7] for r in rows} == {0}
+        # Not certified, so no degrees are invented from the zero.
+        assert all(r[8] == "" and r[9] == "" for r in rows)
+
+    def test_calibrated_and_uncalibrated_batches_keep_separate_rows(self, session):
+        frame, batch = batch_frame(0, 0, temp_state=int(p.TempState.UNCALIBRATED))
+        session.add_batch(frame, batch)
+        frame, batch = batch_frame(20, 1, temp_state=int(p.TempState.OK),
+                                   temp_centi=3667)
+        session.add_batch(frame, batch)
+        rows = list(session.iter_rows())
+        assert all(r[9] == "" for r in rows[:20])
+        assert all(abs(r[9] - 36.67) < 1e-6 for r in rows[20:])
+        assert len({r[14] for r in rows}) == 2, "probe state collapsed between batches"
+
+    def test_the_summary_counts_only_certified_temperature_rows(self, session):
+        frame, batch = batch_frame(0, 0, temp_state=int(p.TempState.UNCALIBRATED))
+        session.add_batch(frame, batch)
+        frame, batch = batch_frame(20, 1, temp_state=int(p.TempState.OK),
+                                   temp_centi=3600)
+        session.add_batch(frame, batch)
+        summary = session.summary()
+        # Counted in batches: one ECG_BATCH carries one temperature reading.
+        assert summary.temp_valid_reports == 1
+        assert summary.temp_mean_c == pytest.approx(36.0)
+        assert summary.temp_uncalibrated is True   # a window did report it
+
+
+class TestEcgBatchMatchesGoldenLayout:
+    def test_a_firmware_shaped_batch_round_trips_through_the_recorder(self, session):
+        """Use the C-generated vector itself, so this is the same bytes."""
+        import json
+        from pathlib import Path
+
+        vectors = json.loads(
+            (Path(__file__).resolve().parents[2] / "tests" / "host" /
+             "protocol_vectors.json").read_text(encoding="utf-8")
+        )["vectors"]
+        raw = bytes.fromhex(vectors["ecg_batch_typical"])
+        _result, frame, _consumed = p.parse_frame(raw)
+        batch = p.decode_ecg_batch(frame)
+        session.add_batch(frame, batch)
+        rows = list(session.iter_rows())
+        assert rows[0][5] == batch.samples[0]
+        assert rows[0][7] == 1731                 # temp_raw, straight from C
+        # That vector sets SFLAG_HR_VALID and carries bpm 72, so the rate is real.
+        assert batch.flags & p.SFLAG_HR_VALID
+        assert rows[0][10] == 72
+        assert rows[0][15] == "0x%04X" % batch.flags
 
 
 class TestCaveats:

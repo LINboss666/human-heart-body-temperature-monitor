@@ -29,10 +29,14 @@ void protocol_service_init(void);
  * Offer one processed sample. The RAW code is what goes on the wire; the
  * derived values ride along in the frame trailer so a PC-side record is
  * self-describing without a second channel.
+ *
+ * Temperature is deliberately NOT a parameter. The trailer takes it from the
+ * diagnostics snapshot when the frame is built, because an optional pointer here
+ * was how ECG_BATCH ended up carrying a permanent zero: the one caller passed
+ * NULL, both fields stayed at their initial value, and nothing failed loudly.
  */
 void protocol_service_push_sample(const ecg_sample_t *ecg,
-                                  const ecg_hr_t *hr,
-                                  const temperature_t *temp);
+                                  const ecg_hr_t *hr);
 
 /** Drain RX, answer commands, emit anything whose cadence is due. */
 void protocol_service_poll(uint32_t now_ms);

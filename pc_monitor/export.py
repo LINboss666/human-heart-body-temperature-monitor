@@ -178,7 +178,7 @@ def _summary_pairs(summary: RecordingSummary, session: RecordingSession) -> list
         ("Heart rate mean (valid)", "" if summary.hr_mean is None else round(summary.hr_mean, 1)),
         ("Heart rate min (valid)", "" if summary.hr_min is None else summary.hr_min),
         ("Heart rate max (valid)", "" if summary.hr_max is None else summary.hr_max),
-        ("Temperature samples valid", summary.temp_valid_rows),
+        ("Temperature reports valid", summary.temp_valid_reports),
         ("Temperature mean (degC)", "" if summary.temp_mean_c is None else round(summary.temp_mean_c, 2)),
         ("Temperature min (degC)", "" if summary.temp_min_c is None else round(summary.temp_min_c, 2)),
         ("Temperature max (degC)", "" if summary.temp_max_c is None else round(summary.temp_max_c, 2)),

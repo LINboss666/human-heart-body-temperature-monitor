@@ -237,21 +237,26 @@ static void test_corruption(void)
 }
 
 /*
+ * The ECG_BATCH trailer.
+ *
  * send_ecg_batch() is static in protocol_service.c and that file needs the HAL,
- * so the tail fill is deliberately duplicated here. What is under test is the
- * agreement between the length the firmware sends and the offsets it writes at,
- * which is precisely the check a hand-counted ECGP_TAIL of 7 defeated: the CRC
- * was computed over the same short length, so the frame verified cleanly while
- * status_flags_t bits 8..15 never left the buffer.
+ * so what is proven here is the trailer itself: that the accessor pair every
+ * builder and parser shares writes each field at the documented offset, keeps
+ * the whole u16 flag word, and stays inside ECGP_TAIL bytes. Two defects lived
+ * in this shape before: a hand-counted ECGP_TAIL of 7 that silently truncated
+ * the flag word while the CRC still passed, and a nullable temperature argument
+ * that left temp_raw/temp_centi at zero forever.
  */
 static void test_ecg_batch_tail(void)
 {
     uint8_t     frame[PKT_MAX_FRAME];
     uint8_t     payload[PKT_MAX_PAYLOAD];
     pkt_frame_t got;
+    pkt_batch_tail_t in;
+    pkt_batch_tail_t out;
     const uint8_t *t;
     uint16_t consumed = 0U;
-    uint16_t made, off, flags;
+    uint16_t made, off;
     uint16_t i;
     const uint16_t n = ECG_BATCH_MAX_SAMPLES;
 
@@ -268,17 +273,16 @@ static void test_ecg_batch_tail(void)
         pkt_put_u16(&payload[ECGP_SAMPLES + i * 2U], (uint16_t)(0x800U + i));
     }
     off = ECGP_SIZE(n);
-    pkt_put_u16(&payload[off + ECGT_TEMP_RAW], 2048U);
-    pkt_put_i16(&payload[off + ECGT_TEMP_CENTI], 3667);
-    payload[off + ECGT_HR_BPM] = 72U;
-    payload[off + ECGT_HR_STATE] = (uint8_t)HR_NORMAL;
-    /* Every bit set, including the four that live in the high byte. */
-    flags = (uint16_t)(SFLAG_OLED | SFLAG_ADC_RUNNING | SFLAG_RTC_VALID |
-                       SFLAG_DMA_DROPPED | SFLAG_TEMP_UNCALIB | SFLAG_HR_VALID |
-                       SFLAG_RECORDING |
-                       ((uint16_t)HR_NORMAL << 0) | ((uint16_t)TEMP_OK << 3) |
-                       SFLAG_LEAD_MASK | SFLAG_NOTCH_MASK);
-    pkt_put_u16(&payload[off + ECGT_FLAGS], flags);
+
+    /* Every field a different value, so a swapped pair cannot cancel out. */
+    in.temp_raw = 1731U;
+    in.temp_centi = 3667;
+    in.hr_bpm = 72U;
+    in.hr_state = (uint8_t)HR_NORMAL;
+    in.flags = (uint16_t)(SFLAG_OLED | SFLAG_ADC_RUNNING | SFLAG_RTC_VALID |
+                          SFLAG_DMA_DROPPED | SFLAG_TEMP_UNCALIB | SFLAG_HR_VALID |
+                          SFLAG_RECORDING | SFLAG_LEAD_MASK | SFLAG_NOTCH_MASK);
+    pkt_write_batch_tail(&payload[off], &in);
 
     made = pkt_build(frame, sizeof(frame), PKT_ECG_BATCH, 1U, 42U,
                      payload, (uint16_t)(off + ECGP_TAIL));
@@ -291,11 +295,11 @@ static void test_ecg_batch_tail(void)
     CHECK_EQ(pkt_parse(frame, made, &got, &consumed), PKT_OK);
     CHECK_EQ(consumed, made);
     t = &got.payload[off];
-    CHECK_EQ(pkt_get_u16(&t[ECGT_TEMP_RAW]), 2048U);
+    CHECK_EQ(pkt_get_u16(&t[ECGT_TEMP_RAW]), 1731U);
     CHECK_EQ(pkt_get_i16(&t[ECGT_TEMP_CENTI]), 3667);
     CHECK_EQ(t[ECGT_HR_BPM], 72U);
     CHECK_EQ(t[ECGT_HR_STATE], (uint8_t)HR_NORMAL);
-    CHECK_EQ(pkt_get_u16(&t[ECGT_FLAGS]), flags);
+    CHECK_EQ(pkt_get_u16(&t[ECGT_FLAGS]), in.flags);
 
     CTEST_CASE("status_flags_t bit 8 and above reach the far end of the frame");
     {
@@ -306,6 +310,61 @@ static void test_ecg_batch_tail(void)
         CHECK((back & SFLAG_DMA_DROPPED) != 0U);
         CHECK((back & SFLAG_TEMP_UNCALIB) != 0U);
         CHECK_EQ((back & SFLAG_NOTCH_MASK) >> SFLAG_NOTCH_SHIFT, 3U);
+    }
+
+    CTEST_CASE("the accessor pair round-trips every field, including negatives");
+    {
+        pkt_batch_tail_t probe;
+        static const int16_t centi[] = { 0, 3667, -4321, 32767, -32768 };
+
+        for (i = 0U; i < sizeof(centi) / sizeof(centi[0]); i++) {
+            memset(&probe, 0, sizeof(probe));
+            probe.temp_raw = (uint16_t)(0xF0F0U + i);
+            probe.temp_centi = centi[i];
+            probe.hr_bpm = (uint8_t)(70U + i);
+            probe.hr_state = (uint8_t)(HR_INVALID + i);
+            probe.flags = (uint16_t)((0x8000U >> i) | 0x00FFU);
+            memset(payload, 0xA5, ECGP_TAIL);
+            pkt_write_batch_tail(payload, &probe);
+            pkt_read_batch_tail(payload, &out);
+            CHECK_EQ(out.temp_raw, probe.temp_raw);
+            CHECK_EQ(out.temp_centi, probe.temp_centi);
+            CHECK_EQ(out.hr_bpm, probe.hr_bpm);
+            CHECK_EQ(out.hr_state, probe.hr_state);
+            CHECK_EQ(out.flags, probe.flags);
+        }
+    }
+
+    CTEST_CASE("writing a tail never touches a byte outside ECGP_TAIL");
+    {
+        uint8_t buf[ECGP_TAIL + 4U];
+
+        memset(buf, 0x5AU, sizeof(buf));
+        memset(&in, 0, sizeof(in));
+        in.temp_raw = 0xFFFFU;
+        in.temp_centi = -1;
+        in.hr_bpm = 0xFFU;
+        in.hr_state = 0xFFU;
+        in.flags = 0xFFFFU;
+        pkt_write_batch_tail(buf, &in);
+        for (i = ECGP_TAIL; i < sizeof(buf); i++) {
+            CHECK_EQ(buf[i], 0x5AU);
+        }
+        /* And it really did fill the whole declared width. */
+        CHECK_EQ(buf[ECGP_TAIL - 1U], 0xFFU);
+    }
+
+    CTEST_CASE("a negative centi value survives as two's complement bytes");
+    {
+        uint8_t buf[ECGP_TAIL];
+        pkt_batch_tail_t neg;
+
+        memset(&neg, 0, sizeof(neg));
+        neg.temp_centi = -4321;
+        pkt_write_batch_tail(buf, &neg);
+        CHECK_EQ(pkt_get_i16(&buf[ECGT_TEMP_CENTI]), -4321);
+        pkt_read_batch_tail(buf, &out);
+        CHECK_EQ(out.temp_centi, -4321);
     }
 }
 

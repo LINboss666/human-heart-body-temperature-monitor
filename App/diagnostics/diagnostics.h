@@ -30,6 +30,7 @@ typedef struct {
     uint8_t  hr_state;          /**< hr_state_t */
     bool     hr_valid;
     int16_t  temp_centi;
+    uint16_t temp_raw;          /**< averaged ADC code; valid even uncalibrated */
     uint8_t  temp_state;        /**< temp_state_t */
     bool     temp_valid;
     bool     temp_uncalibrated;
