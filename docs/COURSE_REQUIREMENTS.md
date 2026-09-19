@@ -28,7 +28,7 @@ physical display is marked as satisfied.
 | Requirement | Implementation | Status |
 | --- | --- | --- |
 | Raw record must keep its bandwidth | `RAW` path is the unfiltered 12-bit code, streamed to the PC and written to CSV/XLSX. Nothing in the filter chain touches it | `SOFTWARE IMPLEMENTED` · `HOST VERIFIED` ("the RAW path reports exactly the ADC code that went in") |
-| Recording bandwidth 0.05–150 Hz | Set by the **analog** front-end, which does not exist yet. The software display path measures -3 dB at 22.1 Hz and the QRS band at 43.8 Hz; neither is claimed as the recording bandwidth | `HARDWARE VERIFICATION PENDING` (Stage H) |
+| Recording bandwidth 0.05–150 Hz | Set by the **analog** front-end, which does not exist yet. The software display path measures -3 dB at 22.1 Hz and the QRS band-pass at 3.8–26.3 Hz relative to its own peak; neither is claimed as the recording bandwidth | `HARDWARE VERIFICATION PENDING` (Stage H) |
 | Baseline drift removal | Two cascaded ~0.62 Hz leaky integrators on the display and QRS paths | `SOFTWARE IMPLEMENTED` · `HOST VERIFIED` (beats detected with 300-count 0.3 Hz wander) |
 | Mains interference | 20-tap comb, exact null at 50 Hz (**measured -313 dB**), selectable 60 Hz (~58.8 Hz null, -34 dB at 60 Hz) or off | `SOFTWARE IMPLEMENTED` · `HOST VERIFIED` (mean \|display\| at 50 Hz: 252 → 1) |
 | Heart-rate calculation | Pan-Tompkins-style energy detector: HP 5 Hz → MA(20) → 3-point derivative → square → 120 ms MWI → self-calibrating threshold → 250 ms refractory → median of last 5 RR | `SOFTWARE IMPLEMENTED` · `HOST VERIFIED` |
@@ -94,7 +94,7 @@ physical display is marked as satisfied.
 | No large Chinese font table | ASCII-only, 1113 bytes |
 | No floating point in the signal chain | All filter and detector arithmetic is integer |
 | Flash must not be faked by changing the part | Device remains `STM32F103C8`, ROM `0x08000000` size `0x10000`, RAM `0x20000000` size `0x5000` — unchanged from Phase 0 |
-| Measured footprint | `Code=37940 RO=3076 RW=376 ZI=7560` → 41392 B flash (**63.2 %** of 64 KB), 7936 B RAM (**38.8 %** of 20 KB) |
+| Measured footprint | `Code=38152 RO=3076 RW=380 ZI=7524` → 41608 B flash (**63.5 %** of 64 KB), 7904 B RAM (**38.6 %** of 20 KB) |
 | Compiler warnings | `0 Warning(s)` at Keil warning level 2, no `--diag_suppress`, no blanket warning suppression |
 
 ## Not satisfied, stated plainly

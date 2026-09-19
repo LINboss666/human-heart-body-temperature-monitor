@@ -14,8 +14,8 @@
 | MCU | STM32F103C8T6 —— Cortex-M3，64 KB Flash，20 KB SRAM |
 | 工具链 | Keil MDK-ARM（AC5 / ARMCC V5.06）、STM32CubeMX 6.17.0、FW_F1 V1.8.7 |
 | 固件编译结果 | `0 Error(s), 0 Warning(s)` |
-| 占用 | `Code=37940 RO=3076 RW=376 ZI=7560` → **Flash 63.2 %，RAM 38.8 %** |
-| 宿主测试 | 6 个 C 可执行文件、901 条断言；Python 用例 238 个，全部 0 失败 |
+| 占用 | `Code=38152 RO=3076 RW=380 ZI=7524` → **Flash 63.5 %，RAM 38.6 %** |
+| 宿主测试 | 6 个 C 可执行文件、1004 条断言；Python 用例 256 个，全部 0 失败 |
 | 已在硬件上验证 | **一项都没有。** 见 [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) |
 | Phase 0 基线 | tag `v0.1-baseline`，commit `eb8a795` |
 
@@ -77,7 +77,8 @@ TIM3 以 1 kHz 溢出，它的 TRGO 脉冲触发 ADC 的外部触发源；ADC �
 从调理级出来的是三条彼此独立的路径，而"彼此独立"正是重点。
 **RAW** 完全不经滤波，也是送给 PC 记录的那一路，因为课程指标要求 0.05–150 Hz 的记录
 带宽；把记录截成心率提取所需的窄带，毁掉的正是被评分的东西。**DISPLAY** 去基线并经梳状
-滤波，供 OLED 使用。**QRS** 是 5–44 Hz 能量检测器：微分 → 平方 → 120 ms 积分 → 自标定
+滤波，供 OLED 使用。**QRS** 是一个带通能量检测器（实测相对自身峰值的 −3 dB 带宽为
+3.8–26.3 Hz）：微分 → 平方 → 120 ms 积分 → 自标定
 门限 → 250 ms 不应期 → 5 个 RR 间区取中位数。
 
 滤波器用的是 2 的幂次泄漏积分器和矩形窗滑动平均，**不是双二阶**。实测一个 Q14 双二阶
@@ -157,11 +158,11 @@ python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
 | 已做到的、有证据的 | 未被声称的 |
 | --- | --- |
 | 干净编译通过，且没有关闭任何告警 | 任何来自人体的测量 |
-| 901 条宿主断言跑在实际出货的整数代码上 | RTC 晶振能否起振、VBAT 能否保持 |
+| 1004 条宿主断言跑在实际出货的整数代码上 | RTC 晶振能否起振、VBAT 能否保持 |
 | C 与 Python 两侧协议逐字节对齐（21 条 C 生成帧回放） | 屏幕上是否真的出现过任何一个像素 |
 | 日历 1970→2099 逐小时往返测试 | ±2 bpm 的心率精度 |
 | 字库能被厂商自己的解码器解出 | 前端增益或偏置是否正确 |
-| Flash/RAM 各余 24 KB / 12 KB | 加载 UI 与 UART 后 1 kHz 是否还守得住 |
+| Flash/RAM 各余 23 KB / 12 KB | 加载 UI 与 UART 后 1 kHz 是否还守得住 |
 
 所有未完成项都配有可执行的步骤，见
 [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md)。
@@ -188,7 +189,7 @@ python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
 | [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) | 台架上手测试，阶段 A–N |
 | [docs/KK_UI_NOTES.md](docs/KK_UI_NOTES.md) | 上游到底是什么，以及本项目的符合性 |
 | [docs/UPSTREAM.md](docs/UPSTREAM.md) | 第三方来源与授权 |
-| [docs/REVIEW_HANDOFF.md](docs/REVIEW_HANDOFF.md) · [PHASE1_REVIEW_HANDOFF.md](docs/PHASE1_REVIEW_HANDOFF.md) | 独立代码审查交接包 |
+| [docs/REVIEW_HANDOFF.md](docs/REVIEW_HANDOFF.md) · [PHASE1_REVIEW_HANDOFF.md](docs/PHASE1_REVIEW_HANDOFF.md) · [PHASE1_REVIEW_FIX_HANDOFF.md](docs/PHASE1_REVIEW_FIX_HANDOFF.md) | 独立代码审查交接包，以及上一轮审查修了什么 |
 
 Phase 0 冻结在 tag `v0.1-baseline`。Phase 1 在分支 `phase1/full-system` 上。
 两者都不构成"这是一台完成度合格的仪器"的声明。

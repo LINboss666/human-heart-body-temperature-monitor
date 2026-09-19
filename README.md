@@ -16,8 +16,8 @@
 | MCU | STM32F103C8T6 — Cortex-M3, 64 KB flash, 20 KB SRAM |
 | Toolchain | Keil MDK-ARM (AC5 / ARMCC V5.06), STM32CubeMX 6.17.0, FW_F1 V1.8.7 |
 | Firmware build | `0 Error(s), 0 Warning(s)` |
-| Footprint | `Code=37940 RO=3076 RW=376 ZI=7560` → **63.2 % flash, 38.8 % RAM** |
-| Host tests | 6 C binaries, 901 assertions · 238 pytest cases, 0 failures |
+| Footprint | `Code=38152 RO=3076 RW=380 ZI=7524` → **63.5 % flash, 38.6 % RAM** |
+| Host tests | 6 C binaries, 1004 assertions · 256 pytest cases, 0 failures |
 | Hardware verified | **None.** See [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) |
 | Phase 0 baseline | tag `v0.1-baseline`, commit `eb8a795` |
 
@@ -81,8 +81,9 @@ Three separate paths leave the conditioning stage, and the separation is the poi
 **RAW** is unfiltered and is what the PC records, because the course metric is a
 0.05–150 Hz recording bandwidth and truncating the record to a heart-rate band would
 destroy what is being graded. **DISPLAY** is baseline-removed and comb-filtered for the
-OLED. **QRS** is a 5–44 Hz energy detector: derivative → square → 120 ms integration →
-self-calibrating threshold → 250 ms refractory → median of 5 RR intervals.
+OLED. **QRS** is a band-pass energy detector (measured −3 dB at 3.8–26.3 Hz relative
+to its own peak): derivative → square → 120 ms integration → self-calibrating
+threshold → 250 ms refractory → median of 5 RR intervals.
 
 Filters are power-of-two leaky integrators and boxcar moving averages, **not biquads**. A
 Q14 biquad high-pass was measured producing a steady 339-count output on a dead-flat
@@ -166,11 +167,11 @@ marked, so they cannot be exported as a measurement.
 | Done and demonstrated | Not claimed |
 | --- | --- |
 | Compiles clean with no warning suppression | Any measurement from a human body |
-| 901 host C assertions on the shipping integer code | That the RTC crystal starts, or VBAT retention |
-| 238 Python cases; 21 frames replayed from the C encoder | That any pixel ever appeared on a panel |
+| 1004 host C assertions on the shipping integer code | That the RTC crystal starts, or VBAT retention |
+| 256 Python cases; 21 frames replayed from the C encoder | That any pixel ever appeared on a panel |
 | Calendar round-trip 1970→2099, hour by hour | ±2 bpm heart-rate accuracy |
 | Font decodes under the vendor's own decoder | That the front-end gain or bias is right |
-| Flash/RAM fit with 24 KB / 12 KB spare | That 1 kHz holds with UI and UART loaded |
+| Flash/RAM fit with 23 KB / 12 KB spare | That 1 kHz holds with UI and UART loaded |
 
 Everything pending is itemised with a procedure in
 [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md).
@@ -199,7 +200,7 @@ Everything pending is itemised with a procedure in
 | [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) | Bench bring-up, stages A–N |
 | [docs/KK_UI_NOTES.md](docs/KK_UI_NOTES.md) | What the upstream really is, and conformance |
 | [docs/UPSTREAM.md](docs/UPSTREAM.md) | Third-party provenance and licences |
-| [docs/REVIEW_HANDOFF.md](docs/REVIEW_HANDOFF.md) · [PHASE1_REVIEW_HANDOFF.md](docs/PHASE1_REVIEW_HANDOFF.md) | Independent review handoffs |
+| [docs/REVIEW_HANDOFF.md](docs/REVIEW_HANDOFF.md) · [PHASE1_REVIEW_HANDOFF.md](docs/PHASE1_REVIEW_HANDOFF.md) · [PHASE1_REVIEW_FIX_HANDOFF.md](docs/PHASE1_REVIEW_FIX_HANDOFF.md) | Independent review handoffs, and what the last review fixed |
 
 Phase 0 is frozen at tag `v0.1-baseline`. Phase 1 lives on branch `phase1/full-system`.
 Neither is a claim of a finished instrument.

@@ -61,6 +61,12 @@ already enabled by the frozen configuration.
 and press each key, watching `uart_rx_packets`/the highlighted menu row move.
 **Pass.** UP moves the highlight up, DOWN down, OK enters. A press registers once, not four
 times.
+**Pass — KEY_OK focus (added by the Phase 1 review fix, currently unexecuted).** On the ECG
+page, OK must start recording and turn PC streaming on; press it again to stop. Then
+navigate to SETTINGS, or DATE & TIME, and press OK on any entry: `recording` and
+`streaming` in the outgoing `STATUS` packet must not change. Before that fix the action
+never fired at all (`BTN_EVT_SHORT` had no producer) and the page predicate stayed true
+forever, so neither direction was ever exercised in code.
 **Software fallback.** No second serial port needed: the ECG page footer and the STATUS page
 both react to keys, so button function is visible through the UART record of `STATUS`
 packets while pressing.

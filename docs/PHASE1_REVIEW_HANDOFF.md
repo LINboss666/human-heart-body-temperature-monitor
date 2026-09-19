@@ -8,9 +8,9 @@
 | Phase 0 baseline | tag `v0.1-baseline` → commit `eb8a795` (**do not move**) |
 | Change since baseline | 116 files, +24318 / −248 |
 | Firmware build | `0 Error(s), 0 Warning(s)` — ARMCC V5.06 update5, `-O3`, warning level 2, **no warnings suppressed** |
-| Footprint | `Code=37940 RO=3076 RW=376 ZI=7560` → flash 41392/65536 = **63.2 %**, RAM 7936/20480 = **38.8 %** |
-| Host C tests | 6 binaries, **901 assertions, 0 failures** |
-| Python tests | **251 cases, 0 failures** (incl. headless GUI) |
+| Footprint | superseded by `phase1/review-fixes`: `Code=38152 RO=3076 RW=380 ZI=7524` → flash **63.5 %**, RAM **38.6 %** |
+| Host C tests | 6 binaries, **1004 assertions, 0 failures** (was 901 at this review) |
+| Python tests | **256 cases, 0 failures** (incl. headless GUI; was 251 here) |
 | Hardware verified | **None.** See §5 |
 
 Read [`README.md`](../README.md) first for what the project claims, and
@@ -91,10 +91,12 @@ count the worst-case path yourself.
 **(4) `App/rtc_service/rtc_service.c` — fighting CubeMX's clock reset.**
 CubeMX calls `HAL_RTC_SetTime/SetDate` to 1970-01-01 unconditionally on every boot.
 Since `hrtc.Instance` is still `NULL` at `RTC_Init 0`, the registers cannot be read
-there, so the workaround snapshots into backup registers: BKP_DR1 holds magic
-`0x2B1C`, DR2/DR3 hold the epoch as two 16-bit halves (F1 BKP registers are 16-bit,
-not 32-bit). Review the ordering — `rtc_service_preserve()` must run before
-`MX_RTC_Init()` resets, `rtc_service_restore()` after.
+there through the HAL, so the service reads the raw backup-domain counter directly
+and stores an **anchor**: BKP_DR1 magic `0x2B1C`, DR2/DR3 the epoch and DR4/DR5 the
+counter, each as two 16-bit halves (F1 BKP registers are 16-bit, not 32-bit).
+Elapsed time is then reconstructed from the counter delta instead of assumed to be
+zero. `docs/PHASE1_REVIEW_FIX_HANDOFF.md` supersedes this paragraph's earlier
+epoch-mirror-only description.
 
 **(5) `App/display/oled_bus.c` — three controller profiles, all unverified.**
 SSD1306 / SH1106 / CH1116 init tables and the 0x3C/0x3D address scan. We do not
@@ -186,7 +188,7 @@ cd pc_monitor
 python -m venv .venv
 .venv/Scripts/pip install -r requirements.txt
 
-# 3. host C algorithms (run from the repo root; 901 assertions, 6 binaries)
+# 3. host C algorithms (run from the repo root; 1004 assertions, 6 binaries)
 cd .. && pc_monitor/.venv/Scripts/python.exe tools/run_host_tests.py
 
 # 4. golden frames: regenerates tests/host/protocol_vectors.json from the real C.
