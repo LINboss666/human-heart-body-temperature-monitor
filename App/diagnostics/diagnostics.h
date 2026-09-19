@@ -56,6 +56,22 @@ void diagnostics_init(void);
 /** The single mutable instance. Modules update their own fields directly. */
 diagnostics_t *diagnostics(void);
 
+/**
+ * Boot-time failures that leave the device running but something inside it not
+ * working. Each one also increments protocol_errors, which does travel in the
+ * STATUS packet, while the code itself stays in last_error_code for a debugger
+ * or a later UI: no screen renders it in this build.
+ *
+ * 200-series rather than KK_UI's error codes, so the two cannot collide.
+ */
+enum {
+    DIAG_ERR_NONE             = 0U,
+    DIAG_ERR_ACQUISITION_START = 200U,  /**< ADC calibration or DMA arming failed */
+    DIAG_ERR_RTC_SYNC         = 201U    /**< RTC register sync never completed;
+                                             the clock is reported unset because the
+                                             elapsed interval cannot be known */
+};
+
 /** Record a protocol-level failure and keep the reason for the STATUS page. */
 void diagnostics_note_error(uint8_t code);
 

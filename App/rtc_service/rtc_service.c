@@ -5,27 +5,38 @@
 #include "rtc.h"
 
 /*
- * Backup-register layout and why the raw counter is read without the HAL.
+ * Three separate things have to be true before elapsed time can be reconstructed,
+ * and each has its own failure mode:
+ *
+ *  1. The RTC core. A 32-bit seconds counter in the backup domain, still running
+ *     through NRST and through VDD removal with VBAT applied. Nothing here can
+ *     make it survive; it either is powered or it is not.
+ *  2. The APB interface that presents that counter as CNTH/CNTL. Its registers
+ *     are synchronised copies, so after a reset they must be re-acquired (RSF)
+ *     before they can be trusted. rtc_sync_before_read() does that.
+ *  3. The anchor in backup registers, mapping counter readings to Unix seconds.
+ *     Written as a transaction: blank commit, payload, valid commit last.
  *
  * rtc_service_preserve() runs from USER CODE BEGIN RTC_Init 0, before the
- * generated code has even assigned hrtc.Instance, so any HAL_RTC_* call there
- * would dereference a null instance. The RTC registers themselves are in the
- * backup domain and can be read directly once the PWR and BKP clocks and the
- * DBP access bit are on, which the generated HAL_RTC_MspInit does but which has
- * not run at preserve time - so bkp_unlock() does it here first.
+ * generated code has assigned hrtc.Instance, so HAL_RTC_* calls cannot be used
+ * there; HAL_RTCEx_BKUPRead/Write are the exception because they ignore the
+ * handle. Reading RTC registers additionally needs the PWR and BKP clocks and the
+ * DBP access bit, which the generated HAL_RTC_MspInit sets up only later, so
+ * bkp_unlock() does it here first. The RTC interface clock (RCC_BDCR RTCEN) is
+ * already on, enabled by HAL_RCCEx_PeriphCLKConfig in SystemClock_Config, so the
+ * register access cannot hang the bus.
  *
- * F1 backup registers are 16 bits wide (HAL_RTCEx_BKUPWrite masks the value with
- * BKP_DR1_D), so each 32-bit half of the anchor needs two of them.
+ * F1 backup registers are 16 bits wide, so each 32-bit half of the anchor needs
+ * two of them; STM32F103C8 has ten in total and five are used.
  *
- * STM32F1's RTC_TimeTypeDef carries only Hours/Minutes/Seconds; SubSeconds and
- * the daylight-saving fields exist on other families and are not touched here.
+ * STM32F1's RTC_TimeTypeDef carries only Hours/Minutes/Seconds; SubSeconds and the
+ * daylight-saving fields exist on other families and are not touched here.
  */
-#define BKP_MAGIC_VALUE   0x2B1CU
-#define BKP_REG_MAGIC     RTC_BKP_DR1
-#define BKP_REG_EPOCH_LO  RTC_BKP_DR2
-#define BKP_REG_EPOCH_HI  RTC_BKP_DR3
-#define BKP_REG_CNT_LO    RTC_BKP_DR4
-#define BKP_REG_CNT_HI    RTC_BKP_DR5
+
+/** Backup registers holding the anchor, indexed by RTC_ANCHOR_W_* . */
+static const uint32_t s_bkp_reg[RTC_ANCHOR_WORDS] = {
+    RTC_BKP_DR1, RTC_BKP_DR2, RTC_BKP_DR3, RTC_BKP_DR4, RTC_BKP_DR5
+};
 
 /** Resync the software estimate against the hardware clock at this cadence. */
 #define RTC_RESYNC_MS     1000U
@@ -34,6 +45,8 @@ static uint32_t s_epoch;
 static uint32_t s_epoch_ticks;      /* HAL_GetTick() that s_epoch corresponds to */
 static bool     s_valid;            /* deliberately set by user or PC at least once */
 static bool     s_anchor_available;
+static bool     s_counter_valid;    /* CNTH/CNTL was readable through a done sync */
+static bool     s_sync_failed;      /* sticky, for diagnostics after App_Init */
 static rtc_anchor_t s_saved_anchor;
 static uint32_t s_counter_at_boot;  /* raw RTC counter, read before CubeMX resets it */
 static uint32_t s_last_mirror_ms;
@@ -57,10 +70,48 @@ static void bkp_write(uint32_t reg, uint32_t value)
 }
 
 /**
+ * Bring the APB-visible RTC registers in step with the RTC core, and report
+ * whether that completed.
+ *
+ * The RTC counter lives in the RTC core, which is powered from the backup domain
+ * and keeps running straight through an NRST, a POR with VBAT, and Stop/Standby
+ * wake-up. What reset does break is the AHB-to-APB bridge that presents CNTH and
+ * CNTL to the bus: those are synchronised copies, and after a reset the first
+ * read can return the value latched before it. Reading the elapsed counter
+ * without re-acquiring RSF can therefore return a stale count, which turns a
+ * "how long was the supply off" delta into an arbitrary number -- including zero.
+ *
+ * This is the same clear-then-poll the HAL performs in HAL_RTC_Init() via
+ * HAL_RTC_WaitForSynchro(), reproduced on the registers rather than the handle:
+ * at RTC_Init 0 hrtc.Instance has not been assigned yet, so neither that function
+ * nor any other HAL_RTC_* call can be used this early. HAL_RTCEx_BKUPRead/Write
+ * are the exception, and take the handle only to ignore it (UNUSED(hrtc)).
+ *
+ * Bounded by the HAL's own RTC_TIMEOUT_VALUE. If LSE is not running the wait
+ * expires rather than hanging the boot; nothing before MX_RTC_Init() can have
+ * failed for want of a clock here, because HAL_RCC_OscConfig() has already
+ * returned with LSE ready or taken Error_Handler().
+ */
+static bool rtc_sync_before_read(void)
+{
+    uint32_t started = HAL_GetTick();
+
+    CLEAR_BIT(RTC->CRL, RTC_FLAG_RSF);
+
+    while ((RTC->CRL & RTC_FLAG_RSF) == 0U) {
+        if ((uint32_t)(HAL_GetTick() - started) > RTC_TIMEOUT_VALUE) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
  * Read the 32-bit RTC counter without a HAL handle.
  *
- * Same high/low/high re-read the HAL itself uses, because the upper half can
- * tick over between the two accesses.
+ * Only meaningful once rtc_sync_before_read() has said the mirror is fresh. Same
+ * high/low/high re-read the HAL itself uses, because the upper half can tick over
+ * between the two accesses.
  */
 static uint32_t hw_counter_raw(void)
 {
@@ -74,13 +125,52 @@ static uint32_t hw_counter_raw(void)
     return (high1 << 16) | low;
 }
 
+static bool anchor_read(rtc_anchor_t *a)
+{
+    uint16_t words[RTC_ANCHOR_WORDS];
+    uint8_t  i;
+
+    for (i = 0U; i < RTC_ANCHOR_WORDS; i++) {
+        words[i] = bkp_read(s_bkp_reg[i]);
+    }
+    return rtc_anchor_decode_words(words, a);
+}
+
+/**
+ * Publish an anchor so that an interruption can only lose it, never corrupt it.
+ *
+ * The commit word is blanked first and written last, so any prefix of the update
+ * leaves the pair undecodable; the fields are never read as a mixture of old and
+ * new. A read-back catches a register that did not take, and demotes the anchor
+ * back to blank rather than committing a value that is not there.
+ *
+ * What this buys over not blanking first: with magic left valid across the write,
+ * VDD loss mid-update would hand the next boot a new epoch against an old counter
+ * and reconstruct a plausible, wrong time. Reporting the clock unset instead is
+ * strictly better.
+ */
 static void anchor_write(const rtc_anchor_t *a)
 {
-    bkp_write(BKP_REG_EPOCH_LO, a->epoch);
-    bkp_write(BKP_REG_EPOCH_HI, a->epoch >> 16);
-    bkp_write(BKP_REG_CNT_LO,   a->counter);
-    bkp_write(BKP_REG_CNT_HI,   a->counter >> 16);
-    bkp_write(BKP_REG_MAGIC,    BKP_MAGIC_VALUE);
+    rtc_anchor_write_t steps[RTC_ANCHOR_WRITE_STEPS];
+    uint8_t n;
+    uint8_t i;
+    rtc_anchor_t readback;
+
+    n = rtc_anchor_write(steps, a);
+
+    for (i = 0U; i < n; i++) {
+        bkp_write(s_bkp_reg[steps[i].slot], steps[i].value);
+    }
+
+    /* Verified into a local: a.out param here would overwrite the caller's
+     * anchor, which is const precisely because it is the value being published. */
+    if (!anchor_read(&readback)
+        || readback.epoch != a->epoch || readback.counter != a->counter) {
+        /* Something did not land, or did not come back as written. Blank the
+         * commit word so the next boot reports "never set" rather than trusting a
+         * half-written pair. */
+        bkp_write(s_bkp_reg[RTC_ANCHOR_W_COMMIT], (uint32_t)RTC_ANCHOR_COMMIT_BLANK);
+    }
 }
 
 /** Pair the current software epoch with the hardware counter as read now. */
@@ -156,20 +246,30 @@ static bool hw_get(uint32_t *epoch_out)
 void rtc_service_preserve(void)
 {
     bkp_unlock();
-    s_anchor_available = (bkp_read(BKP_REG_MAGIC) == BKP_MAGIC_VALUE);
-    if (s_anchor_available) {
-        s_saved_anchor.epoch   = (uint32_t)bkp_read(BKP_REG_EPOCH_LO)
-                               | ((uint32_t)bkp_read(BKP_REG_EPOCH_HI) << 16);
-        s_saved_anchor.counter = (uint32_t)bkp_read(BKP_REG_CNT_LO)
-                               | ((uint32_t)bkp_read(BKP_REG_CNT_HI) << 16);
-    } else {
-        s_saved_anchor.epoch = 0U;
-        s_saved_anchor.counter = 0U;
-    }
+
+    /* Order matters: unlock the backup interface, re-acquire the APB shadow, and
+     * only then read the counter and the anchor. CNTH/CNTL are synchronised
+     * copies of the RTC core; reading them before RSF has been re-acquired after
+     * this reset can return the value latched before it, which would make the
+     * elapsed delta wrong in either direction -- zero included. */
+    s_counter_valid = rtc_sync_before_read();
+    s_sync_failed = !s_counter_valid;
+
     /* The one reading that cannot be taken later. Everything after this point in
      * MX_RTC_Init overwrites the counter with seconds-of-day, so the elapsed
      * VBAT time is unrecoverable if it is not sampled here. */
-    s_counter_at_boot = hw_counter_raw();
+    s_counter_at_boot = s_counter_valid ? hw_counter_raw() : 0U;
+
+    s_anchor_available = anchor_read(&s_saved_anchor);
+    if (!s_anchor_available) {
+        s_saved_anchor.epoch = 0U;
+        s_saved_anchor.counter = 0U;
+    }
+}
+
+bool rtc_service_sync_failed(void)
+{
+    return s_sync_failed;
 }
 
 void rtc_service_restore(void)
@@ -178,12 +278,15 @@ void rtc_service_restore(void)
 
     s_epoch_ticks = HAL_GetTick();
 
-    if (!s_anchor_available || !rtc_anchor_restore(&s_saved_anchor,
-                                                   s_counter_at_boot, &epoch)) {
-        /* Either genuinely never set, or the anchor and the counter disagree so
-         * badly that no honest time can be derived from them. CubeMX has just
-         * written 2000-01-01; leave it running and let rtc_service_is_valid()
-         * say "not set" rather than present an invented timestamp. */
+    if (!s_anchor_available || !s_counter_valid
+        || !rtc_anchor_restore(&s_saved_anchor, s_counter_at_boot, &epoch)) {
+        /* Three distinct ways to have no honest time: genuinely never set (or an
+         * anchor caught mid-update, which now decodes as unset rather than as a
+         * mixture); the APB sync failing, which leaves the elapsed interval
+         * unknown and the stored epoch merely hours stale; or an anchor and a
+         * counter that disagree too badly to derive anything. In every case
+         * CubeMX's 2000-01-01 is left running and rtc_service_is_valid() says
+         * "not set", rather than presenting a constructed timestamp. */
         s_epoch = 0U;
         s_valid = false;
         return;
@@ -214,7 +317,10 @@ void rtc_service_init(void)
         s_epoch = hw_epoch;
         s_epoch_ticks = HAL_GetTick();
     }
-    s_valid = (bkp_read(BKP_REG_MAGIC) == BKP_MAGIC_VALUE);
+    /* Trust the stored clock only when this boot actually read the counter; a
+     * valid anchor with an unreadable elapsed time is not a valid clock. See
+     * rtc_service_restore() for the same rule. */
+    s_valid = s_anchor_available && s_counter_valid;
 }
 
 void rtc_service_poll(uint32_t now_ms)
@@ -253,15 +359,18 @@ void rtc_service_poll(uint32_t now_ms)
 
     if ((uint32_t)(now_ms - s_last_mirror_ms) >= RTC_RESYNC_MS) {
         s_last_mirror_ms = now_ms;
-        /* Only ever store a pair that was observed together. If the hardware
-         * could not be read this cycle, the previous anchor stays valid: it
-         * still describes the counter, which kept advancing, so the next boot
-         * reconstructs the true elapsed time from it. */
-        if (anchored) {
+        if (s_valid && anchored) {
+            /* Only ever store a pair that was observed together. If the hardware
+             * could not be read this cycle the previous anchor is kept: it still
+             * describes the counter, which kept advancing, so the next boot
+             * reconstructs the true elapsed time from it. */
             anchor_now();
-        }
-        if (!s_valid) {
-            bkp_write(BKP_REG_MAGIC, 0U);
+        } else if (!s_valid) {
+            /* The clock was never deliberately set, so no anchor may exist: an old
+             * one must not resurrect a time nobody chose. Blank the commit word
+             * rather than write a payload and then invalidate it. */
+            bkp_write(s_bkp_reg[RTC_ANCHOR_W_COMMIT],
+                      (uint32_t)RTC_ANCHOR_COMMIT_BLANK);
         }
     }
 }

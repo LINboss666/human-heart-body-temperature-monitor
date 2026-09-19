@@ -26,6 +26,21 @@
  * The arithmetic itself is rtc_anchor_restore() in rtc_calendar.c, which is
  * host-tested including the counter-wrap and implausible-delta cases.
  *
+ * Two things have to hold for that reading to mean anything, and they are
+ * separate:
+ *
+ *   - The APB interface that presents CNTH/CNTL must have re-synchronised with
+ *     the RTC core since this reset (the RSF flag). Those registers are
+ *     synchronised copies, so a first read after a reset can return the value
+ *     latched before it. rtc_sync_before_read() clears RSF and waits, bounded;
+ *     if it times out the counter is not read at all and the clock is reported
+ *     unset rather than reconstructed from a number nobody observed.
+ *   - The anchor itself must not be half-written. F1 backup registers are 16
+ *     bits with no transaction across them, so an anchor is published blank
+ *     commit first, valid commit last: any power cut mid-update leaves it
+ *     undecodable, which costs the clock and cannot invent one. See
+ *     rtc_anchor_write().
+ *
  * VBAT retention itself is hardware this project has NOT confirmed; see
  * HARDWARE_TEST_PLAN.md. This makes the elapsed interval recoverable if the
  * hardware turns out to hold; it does not claim that it does.
@@ -72,6 +87,15 @@ void     rtc_service_get_datetime(rtc_datetime_t *out);
  */
 bool rtc_service_set_datetime(const rtc_datetime_t *dt);
 bool rtc_service_set_timestamp(uint32_t epoch);
+
+/**
+ * True if the APB register-synchronisation wait did not complete before the
+ * timeout this boot, so CNTH/CNTL were never read and no elapsed interval could
+ * be established. Sticky, and queryable only after App_Init(): raise it there
+ * rather than from restore(), because diagnostics_init() runs after MX_RTC_Init()
+ * and would otherwise erase a code noted during the RTC init.
+ */
+bool rtc_service_sync_failed(void);
 
 /**
  * False until the user or the PC has set the clock for the first time on this

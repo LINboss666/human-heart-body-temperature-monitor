@@ -157,6 +157,49 @@ uint32_t rtc_counter_elapsed(uint32_t counter_ref, uint32_t counter_now)
     return (uint32_t)(counter_now - counter_ref);
 }
 
+uint8_t rtc_anchor_write(rtc_anchor_write_t steps[RTC_ANCHOR_WRITE_STEPS],
+                         const rtc_anchor_t *a)
+{
+    if (steps == NULL || a == NULL) {
+        return 0U;
+    }
+
+    /* Blank first, commit last. Every step below this one is recoverable: with a
+     * blank commit word the stored fields are simply not an anchor yet. */
+    steps[0].slot  = RTC_ANCHOR_W_COMMIT;
+    steps[0].value = (uint16_t)RTC_ANCHOR_COMMIT_BLANK;
+
+    steps[1].slot  = RTC_ANCHOR_W_EPOCH_LO;
+    steps[1].value = (uint16_t)(a->epoch & 0xFFFFU);
+    steps[2].slot  = RTC_ANCHOR_W_EPOCH_HI;
+    steps[2].value = (uint16_t)(a->epoch >> 16);
+    steps[3].slot  = RTC_ANCHOR_W_COUNT_LO;
+    steps[3].value = (uint16_t)(a->counter & 0xFFFFU);
+    steps[4].slot  = RTC_ANCHOR_W_COUNT_HI;
+    steps[4].value = (uint16_t)(a->counter >> 16);
+
+    steps[5].slot  = RTC_ANCHOR_W_COMMIT;
+    steps[5].value = (uint16_t)RTC_ANCHOR_COMMIT_VALID;
+    return RTC_ANCHOR_WRITE_STEPS;
+}
+
+bool rtc_anchor_decode_words(const uint16_t *words, rtc_anchor_t *out)
+{
+    if (words == NULL || out == NULL) {
+        return false;
+    }
+    if (words[RTC_ANCHOR_W_COMMIT] != (uint16_t)RTC_ANCHOR_COMMIT_VALID) {
+        return false;
+    }
+
+    out->epoch   = (uint32_t)words[RTC_ANCHOR_W_EPOCH_LO]
+                 | ((uint32_t)words[RTC_ANCHOR_W_EPOCH_HI] << 16);
+    out->counter = (uint32_t)words[RTC_ANCHOR_W_COUNT_LO]
+                 | ((uint32_t)words[RTC_ANCHOR_W_COUNT_HI] << 16);
+
+    return out->epoch <= (uint32_t)RTC_EPOCH_MAX_SECOND;
+}
+
 bool rtc_anchor_restore(const rtc_anchor_t *anchor, uint32_t counter_now,
                         uint32_t *epoch_out)
 {

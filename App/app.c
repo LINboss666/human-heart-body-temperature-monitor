@@ -113,14 +113,25 @@ void App_Init(void)
     ecg_hr_reset(HR_BPM_LOW_DEFAULT, HR_BPM_HIGH_DEFAULT);
     temperature_init();
     rtc_service_init();
+    if (rtc_service_sync_failed()) {
+        /* RTC register synchronisation never completed, so this boot could not
+         * read the counter and the clock is reported unset. Everything else can
+         * still run. The count reaches the PC inside STATUS (protocol_errors) and
+         * the code is held in last_error_code, which no screen renders yet -- this
+         * is a bench-visible breadcrumb, not a user-facing message. Noted here
+         * rather than in restore() because diagnostics_init() has not run at
+         * MX_RTC_Init() time and would erase it. */
+        diagnostics_note_error(DIAG_ERR_RTC_SYNC);
+    }
     protocol_service_init();
     ui_app_init();
 
     if (!acquisition_start()) {
-        /* Calibration or DMA arming failed. Everything that does not need the
-         * ADC still runs, and the STATUS page says so, rather than the device
-         * trapping in Error_Handler() with nothing on screen. */
-        diagnostics_note_error(200U);
+        /* Calibration or DMA arming failed. Everything that does not need the ADC
+         * still runs; adc_running stays clear on the STATUS page and in the
+         * STATUS packet, and the reason is held in last_error_code, rather than
+         * the device trapping in Error_Handler() with nothing on screen. */
+        diagnostics_note_error(DIAG_ERR_ACQUISITION_START);
     }
 
     s_recording = false;

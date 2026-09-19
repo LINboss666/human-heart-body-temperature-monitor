@@ -360,6 +360,160 @@ static void test_anchor_reconstruction(void)
     CHECK(!rtc_anchor_restore(&a, 5U, NULL));
 }
 
+/*
+ * STM32F1 backup registers are 16 bits each and there is no transaction spanning
+ * several of them, so publishing an anchor is five writes and VDD can fail between
+ * any two. The commit-last sequence in rtc_anchor_write() is what makes an
+ * interrupted update rejectable; these tests drive the real sequence the firmware
+ * uses, one step at a time, from a starting image that is a fully valid OLD anchor.
+ *
+ * The interesting cases are the middle of the update. If the commit word stayed
+ * valid while the payload was being replaced, a failure after the epoch words
+ * would leave a new epoch paired with an old counter -- which decodes cleanly and
+ * reconstructs a plausible, wrong time. That is the failure this prevents, and the
+ * one thing an anchor must never do.
+ */
+static void test_anchor_update_is_transactional(void)
+{
+    rtc_anchor_write_t steps[RTC_ANCHOR_WRITE_STEPS];
+    uint16_t regs[RTC_ANCHOR_WORDS];
+    rtc_anchor_t old_a;
+    rtc_anchor_t new_a;
+    rtc_anchor_t out;
+    uint8_t n;
+    uint8_t i;
+
+    old_a.epoch = 1500000000UL;
+    old_a.counter = 40000U;
+    new_a.epoch = 1953182712UL;     /* 2031-11-23, a different value in every word */
+    new_a.counter = 1234567UL;
+
+    n = rtc_anchor_write(steps, &new_a);
+    CHECK_EQ(n, RTC_ANCHOR_WRITE_STEPS);
+
+    CTEST_CASE("the update is six writes and the last one is the commit");
+    CHECK_EQ(steps[RTC_ANCHOR_WRITE_STEPS - 1U].slot, RTC_ANCHOR_W_COMMIT);
+    CHECK_EQ(steps[RTC_ANCHOR_WRITE_STEPS - 1U].value,
+             (uint16_t)RTC_ANCHOR_COMMIT_VALID);
+
+    CTEST_CASE("the first write blanks the commit, before any payload changes");
+    CHECK_EQ(steps[0].slot, RTC_ANCHOR_W_COMMIT);
+    CHECK_EQ(steps[0].value, (uint16_t)RTC_ANCHOR_COMMIT_BLANK);
+
+    CTEST_CASE("the four payload slots are each written exactly once");
+    {
+        uint8_t payload_writes = 0U;
+
+        for (i = 0U; i < n; i++) {
+            if (steps[i].slot != RTC_ANCHOR_W_COMMIT) {
+                payload_writes++;
+            }
+        }
+        CHECK_EQ(payload_writes, RTC_ANCHOR_WORDS - 1U);
+    }
+
+    /* Interruption after every stage. All but the last must be refused. */
+    CTEST_CASE("interruption after any single write of the update is refused");
+    for (i = 0U; i < n; i++) {
+        uint8_t k;
+        bool decoded;
+
+        /* Start from a complete, valid OLD anchor as the hardware would hold it. */
+        regs[RTC_ANCHOR_W_COMMIT]    = (uint16_t)RTC_ANCHOR_COMMIT_VALID;
+        regs[RTC_ANCHOR_W_EPOCH_LO]  = (uint16_t)(old_a.epoch & 0xFFFFU);
+        regs[RTC_ANCHOR_W_EPOCH_HI]  = (uint16_t)(old_a.epoch >> 16);
+        regs[RTC_ANCHOR_W_COUNT_LO]  = (uint16_t)(old_a.counter & 0xFFFFU);
+        regs[RTC_ANCHOR_W_COUNT_HI]  = (uint16_t)(old_a.counter >> 16);
+
+        /* Land the first i+1 writes, then "lose power". */
+        for (k = 0U; k <= i; k++) {
+            regs[steps[k].slot] = steps[k].value;
+        }
+
+        decoded = rtc_anchor_decode_words(regs, &out);
+        if (i + 1U < n) {
+            CHECK(!decoded);
+        } else {
+            /* Only the completed sequence is readable, and it reads back the new
+             * anchor rather than any mixture. */
+            CHECK(decoded);
+            CHECK_EQ(out.epoch, new_a.epoch);
+            CHECK_EQ(out.counter, new_a.counter);
+        }
+    }
+
+    CTEST_CASE("a payload written without touching the commit word is a mixture");
+    {
+        /* What blanking the commit first buys.
+         *
+         * This image cannot come from the sequence above -- step 0 blanks the
+         * commit before any payload changes -- but it is what a write order that
+         * leaves the commit valid would produce on an unlucky power cut: a new
+         * epoch against an old counter. Assert the consequence honestly rather
+         * than wish for a guard: it DECODES, and rtc_anchor_restore accepts it
+         * and returns the new epoch unchanged, because elapsed looks like zero.
+         * The device would boot showing a time that silently skipped however long
+         * the supply was away, and say nothing. Nothing downstream can tell. */
+        uint16_t torn[RTC_ANCHOR_WORDS];
+        uint32_t bogus;
+
+        torn[RTC_ANCHOR_W_COMMIT]    = (uint16_t)RTC_ANCHOR_COMMIT_VALID;
+        torn[RTC_ANCHOR_W_EPOCH_LO]  = (uint16_t)(new_a.epoch & 0xFFFFU);
+        torn[RTC_ANCHOR_W_EPOCH_HI]  = (uint16_t)(new_a.epoch >> 16);
+        torn[RTC_ANCHOR_W_COUNT_LO]  = (uint16_t)(old_a.counter & 0xFFFFU);
+        torn[RTC_ANCHOR_W_COUNT_HI]  = (uint16_t)(old_a.counter >> 16);
+        CHECK(rtc_anchor_decode_words(torn, &out));
+        CHECK_EQ(out.epoch, new_a.epoch);
+        CHECK_EQ(out.counter, old_a.counter);
+
+        /* Accepted, and the outage is lost without trace. */
+        CHECK(rtc_anchor_restore(&out, old_a.counter, &bogus));
+        CHECK_EQ(bogus, new_a.epoch);
+        /* Also accepted when the counter had run ahead, so the reported time is
+         * new-epoch + (old-counter delta): wrong in an unbounded direction. */
+        CHECK(rtc_anchor_restore(&out, old_a.counter + 10U, &bogus));
+        CHECK_EQ(bogus, new_a.epoch + 10U);
+    }
+
+    CTEST_CASE("blanked or wrong commit words are refused, as is a NULL image");
+    {
+        uint16_t blank[RTC_ANCHOR_WORDS];
+
+        memcpy(blank, regs, sizeof(blank));
+        blank[RTC_ANCHOR_W_COMMIT] = (uint16_t)RTC_ANCHOR_COMMIT_BLANK;
+        CHECK(!rtc_anchor_decode_words(blank, &out));
+
+        blank[RTC_ANCHOR_W_COMMIT] = 0xBEEFU;
+        CHECK(!rtc_anchor_decode_words(blank, &out));
+
+        CHECK(!rtc_anchor_decode_words(NULL, &out));
+        CHECK(!rtc_anchor_decode_words(regs, NULL));
+    }
+
+    CTEST_CASE("an out-of-range epoch is refused even with a good commit word");
+    {
+        uint16_t bad[RTC_ANCHOR_WORDS];
+
+        bad[RTC_ANCHOR_W_COMMIT]    = (uint16_t)RTC_ANCHOR_COMMIT_VALID;
+        bad[RTC_ANCHOR_W_EPOCH_LO]  = 0xFFFFU;
+        bad[RTC_ANCHOR_W_EPOCH_HI]  = 0xFFFFU;   /* 0xFFFFFFFF, past 2099 */
+        bad[RTC_ANCHOR_W_COUNT_LO]  = 0U;
+        bad[RTC_ANCHOR_W_COUNT_HI]  = 0U;
+        CHECK(!rtc_anchor_decode_words(bad, &out));
+    }
+
+    CTEST_CASE("a committed anchor still reconstructs across a wrap and an outage");
+    {
+        uint32_t epoch_out;
+
+        CHECK(rtc_anchor_restore(&new_a, new_a.counter + 3600U, &epoch_out));
+        CHECK_EQ(epoch_out, new_a.epoch + 3600U);
+        new_a.counter = 0xFFFFFFFFU - 5U;
+        CHECK(rtc_anchor_restore(&new_a, 20U, &epoch_out));
+        CHECK_EQ(epoch_out, new_a.epoch + 26U);
+    }
+}
+
 CTEST_MAIN("rtc calendar")
 {
     test_known_anchors();
@@ -370,4 +524,5 @@ CTEST_MAIN("rtc calendar")
     test_validation_rejects();
     test_weekday_continuity();
     test_anchor_reconstruction();
+    test_anchor_update_is_transactional();
 }

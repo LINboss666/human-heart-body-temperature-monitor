@@ -80,6 +80,63 @@ typedef struct {
     uint32_t counter;   /**< raw RTC counter at that same instant */
 } rtc_anchor_t;
 
+/*
+ * Storage shape of an anchor in STM32F1 backup registers.
+ *
+ * F1 backup registers are 16 bits wide and there is no transaction spanning
+ * several of them, so an anchor is five words written in a fixed order with the
+ * commit word last. The words and that order live here rather than in
+ * rtc_service.c so the interruption behaviour is testable without a chip: a host
+ * test replays every prefix of rtc_anchor_write() and asserts that nothing short
+ * of the whole sequence decodes.
+ *
+ * STM32F103C8 has exactly ten backup registers, so this five-word single-slot
+ * layout leaves five free. A dual-slot design would consume all ten and, because
+ * the counter keeps running while the anchor does not change, a fall-back to the
+ * previous slot would keep the clock valid across an interrupted update. It
+ * would also need a slot selector, which is itself a non-atomic write and so
+ * reopens the window it was meant to close. Since the failure this design does
+ * produce is a reported "not set" rather than a wrong time, the extra slot is
+ * not paid for here.
+ */
+#define RTC_ANCHOR_WORDS          5U
+#define RTC_ANCHOR_WRITE_STEPS    6U   /* blank, 4 payload words, valid */
+
+#define RTC_ANCHOR_COMMIT_VALID   0x2B1CU
+#define RTC_ANCHOR_COMMIT_BLANK   0x0000U
+
+enum {
+    RTC_ANCHOR_W_COMMIT = 0,
+    RTC_ANCHOR_W_EPOCH_LO,
+    RTC_ANCHOR_W_EPOCH_HI,
+    RTC_ANCHOR_W_COUNT_LO,
+    RTC_ANCHOR_W_COUNT_HI
+};
+
+/** One write of an anchor update: backup-register slot and the value for it. */
+typedef struct {
+    uint8_t  slot;
+    uint16_t value;
+} rtc_anchor_write_t;
+
+/**
+ * Fill `steps` with the six writes that publish `a`, blank commit first and
+ * valid commit last. Returns RTC_ANCHOR_WRITE_STEPS.
+ *
+ * The blanking write is what makes an interrupted update detectable: while the
+ * commit word is blank, no mixture of old and new payload words can decode, so
+ * the worst a power cut during the update can do is lose the clock, never
+ * invent one.
+ */
+uint8_t rtc_anchor_write(rtc_anchor_write_t steps[RTC_ANCHOR_WRITE_STEPS],
+                         const rtc_anchor_t *a);
+
+/**
+ * Decode a backup-register image. False unless the commit word says the whole
+ * update landed and the epoch is inside the supported window.
+ */
+bool rtc_anchor_decode_words(const uint16_t *words, rtc_anchor_t *out);
+
 /**
  * Seconds the hardware counter advanced between two readings.
  *
