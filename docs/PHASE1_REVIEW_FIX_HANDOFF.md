@@ -4,7 +4,7 @@
 | --- | --- |
 | Branch | `phase1/review-fixes` (pushed; **not** merged to `main`) |
 | Starting commit | `b10c07fc09629596e387c96c5f1424ad81392e20` |
-| Code HEAD | `a805625` — six fix commits; this document is committed on top and changes no code |
+| Review this | the branch tip. The six code fixes are `5f02b33..a805625`; `7993e1f` and `0b0adfc` after them change only documentation and one over-strict GUI assertion |
 | Frozen baseline | tag `v0.1-baseline` → `eb8a795` (untouched) |
 | Change set | 30 files, +984 / −250 |
 | Firmware build | `0 Error(s), 0 Warning(s)` (full `-r` rebuild) |
