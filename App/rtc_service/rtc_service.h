@@ -4,17 +4,31 @@
  *          internal representation.
  *
  * Why preserve/restore hooks exist. The CubeMX regeneration that fixed the RTC
- * output (see docs/UPSTREAM.md and the first commit on this branch) also made
- * MX_RTC_Init() call HAL_RTC_SetTime(00:00:00) and HAL_RTC_SetDate(2000-01-01)
- * unconditionally on every boot. CubeMX 6.17 emits that block with no .ioc
- * switch that turns it off, so rather than hand-editing generated code - which
- * the next regeneration would silently revert - the service snapshots the clock
- * into a backup register immediately before the reset and writes it back
- * immediately after. The .ioc and the generated code stay mutually consistent,
- * which is the property the Phase 1 brief asks to preserve.
+ * output (see docs/UPSTREAM.md and commit 488521b) also made MX_RTC_Init() call
+ * HAL_RTC_SetTime(00:00:00) and HAL_RTC_SetDate(2000-01-01) unconditionally on
+ * every boot. CubeMX 6.17 emits that block with no .ioc switch that turns it off,
+ * so rather than hand-editing generated code - which the next regeneration would
+ * silently revert - the service captures the clock immediately before the reset
+ * and reconstructs it immediately after. The .ioc and the generated code stay
+ * mutually consistent, which is the property the Phase 1 brief asks to preserve.
  *
- * Continuity across a power cycle still depends on VBAT, which is hardware this
- * project has not confirmed; see HARDWARE_TEST_PLAN.md.
+ * What is captured, and why an epoch alone is not enough. The STM32F1 RTC is a
+ * 32-bit seconds counter in the backup domain with no calendar in hardware;
+ * HAL_RTC_GetTime() folds elapsed days out of that counter into hrtc->DateToUpdate,
+ * which is RAM. If only the epoch were saved, a VDD interruption with VBAT still
+ * applied would resume at the stored value and silently discard every second the
+ * RTC spent counting meanwhile. The service therefore stores an ANCHOR - the epoch
+ * paired with the raw counter read at that same instant - and reconstructs
+ *
+ *     epoch_at_boot = anchor.epoch + (counter_at_boot - anchor.counter)
+ *
+ * reading the raw counter in preserve(), before CubeMX's SetTime overwrites it.
+ * The arithmetic itself is rtc_anchor_restore() in rtc_calendar.c, which is
+ * host-tested including the counter-wrap and implausible-delta cases.
+ *
+ * VBAT retention itself is hardware this project has NOT confirmed; see
+ * HARDWARE_TEST_PLAN.md. This makes the elapsed interval recoverable if the
+ * hardware turns out to hold; it does not claim that it does.
  */
 #ifndef RTC_SERVICE_H
 #define RTC_SERVICE_H

@@ -208,6 +208,158 @@ static void test_weekday_continuity(void)
     CHECK_EQ(faults, 0U);
 }
 
+/** Build a datetime and convert it, so the anchor tests below read as dates. */
+static uint32_t rtc_to_epoch_dt(uint16_t y, uint8_t mo, uint8_t d,
+                                uint8_t h, uint8_t mi, uint8_t s, bool *ok)
+{
+    rtc_datetime_t dt;
+
+    memset(&dt, 0, sizeof(dt));
+    dt.year = y;
+    dt.month = mo;
+    dt.day = d;
+    dt.hour = h;
+    dt.minute = mi;
+    dt.second = s;
+    return rtc_to_epoch(&dt, ok);
+}
+
+/*
+ * The anchor arithmetic that makes elapsed VBAT time recoverable on STM32F1,
+ * where the RTC peripheral is a bare seconds counter and the HAL keeps the
+ * calendar in RAM. Everything CubeMX does at boot destroys the counter, so the
+ * only thing that can prove "the clock ran for N seconds while the supply was
+ * off" is the difference between two counter readings paired with an epoch.
+ */
+static void test_anchor_reconstruction(void)
+{
+    rtc_anchor_t  a;
+    uint32_t      out;
+    rtc_datetime_t dt;
+    bool          ok;
+
+    CTEST_CASE("the documented epoch ceiling is the one the code computes");
+    {
+        rtc_datetime_t top;
+        bool           valid = false;
+
+        memset(&top, 0, sizeof(top));
+        top.year = RTC_EPOCH_MAX_YEAR;
+        top.month = 12U;
+        top.day = 31U;
+        top.hour = 23U;
+        top.minute = 59U;
+        top.second = 59U;
+        CHECK_EQ(rtc_to_epoch(&top, &valid), (uint32_t)RTC_EPOCH_MAX_SECOND);
+        CHECK(valid);
+        CHECK_EQ((uint32_t)RTC_EPOCH_MIN_SECOND, 0U);
+    }
+
+    a.epoch = rtc_to_epoch_dt(2026, 9, 18, 14, 30, 0, &ok);
+    CHECK(ok);
+
+    CTEST_CASE("no elapsed counter movement reproduces the anchor epoch exactly");
+    a.counter = 500000U;
+    CHECK(rtc_anchor_restore(&a, 500000U, &out));
+    CHECK_EQ(out, a.epoch);
+
+    CTEST_CASE("a software reset reconstructs the same second");
+    /* NRST does not reset the backup domain, so the counter holds its value. */
+    CHECK(rtc_anchor_restore(&a, a.counter, &out));
+    CHECK_EQ(out, a.epoch);
+
+    CTEST_CASE("an hour of VBAT-only running comes back as one hour");
+    CHECK(rtc_anchor_restore(&a, a.counter + 3600U, &out));
+    CHECK_EQ(out, a.epoch + 3600U);
+    rtc_from_epoch(out, &dt);
+    CHECK_EQ(dt.hour, 15U);
+    CHECK_EQ(dt.day, 18U);
+
+    CTEST_CASE("a 36-hour outage crosses midnight twice and is still exact");
+    CHECK(rtc_anchor_restore(&a, a.counter + 36U * 3600U, &out));
+    CHECK_EQ(out, a.epoch + 36U * 3600U);
+    rtc_from_epoch(out, &dt);
+    CHECK_EQ(dt.day, 20U);         /* 18th 14:30 + 36 h = 20th 02:30 */
+    CHECK_EQ(dt.hour, 2U);
+    CHECK_EQ(dt.minute, 30U);
+
+    CTEST_CASE("the outage can cross a leap day");
+    {
+        rtc_datetime_t base;
+        memset(&base, 0, sizeof(base));
+        base.year = 2024; base.month = 2; base.day = 28;
+        base.hour = 23; base.minute = 59; base.second = 59;
+        a.epoch = rtc_to_epoch(&base, &ok);
+        CHECK(ok);
+        a.counter = 12345U;
+        CHECK(rtc_anchor_restore(&a, a.counter + 1U, &out));
+        rtc_from_epoch(out, &dt);
+        CHECK_EQ(dt.month, 2U);
+        CHECK_EQ(dt.day, 29U);      /* 2024 is a leap year */
+    }
+
+    CTEST_CASE("the outage can cross into a new year");
+    {
+        rtc_datetime_t base;
+        memset(&base, 0, sizeof(base));
+        base.year = 2025; base.month = 12; base.day = 31;
+        base.hour = 23; base.minute = 59; base.second = 59;
+        a.epoch = rtc_to_epoch(&base, &ok);
+        CHECK(ok);
+        a.counter = 0U;
+        CHECK(rtc_anchor_restore(&a, 1U, &out));
+        rtc_from_epoch(out, &dt);
+        CHECK_EQ(dt.year, 2026U);
+        CHECK_EQ(dt.month, 1U);
+        CHECK_EQ(dt.day, 1U);
+    }
+
+    CTEST_CASE("counter wrap is handled by the modulo the hardware itself has");
+    {
+        uint32_t elapsed;
+
+        a.epoch = rtc_to_epoch_dt(2026, 1, 1, 0, 0, 0, &ok);
+        CHECK(ok);
+        a.counter = 0xFFFFFFFFU - 10U;
+        CHECK(rtc_anchor_restore(&a, 9U, &out));          /* wrapped past zero */
+        CHECK_EQ(out, a.epoch + 20U);
+
+        elapsed = rtc_counter_elapsed(0U, 0U);
+        CHECK_EQ(elapsed, 0U);
+        /* A counter reading below the anchor is not "negative time"; it is the
+         * wrap the hardware performs at 2^32 seconds. */
+        CHECK_EQ(rtc_counter_elapsed(10U, 5U), 0xFFFFFFFBUL);
+        CHECK_EQ(rtc_counter_elapsed(0U, 0x80000000U), 0x80000000UL);
+    }
+
+    CTEST_CASE("an implausible delta is refused rather than turned into a future date");
+    {
+        /* Counter reset to zero while the anchor survived would otherwise ask for
+         * 4 billion seconds of elapsed time. */
+        a.epoch = rtc_to_epoch_dt(2026, 6, 1, 12, 0, 0, &ok);
+        CHECK(ok);
+        a.counter = 1000000U;
+        CHECK(!rtc_anchor_restore(&a, 999999U, &out));
+        CHECK(!rtc_anchor_restore(&a, 0U, &out));
+
+        /* An anchor already past the supported window can never be repaired. */
+        a.epoch = (uint32_t)RTC_EPOCH_MAX_SECOND;
+        a.counter = 7U;
+        CHECK(rtc_anchor_restore(&a, 7U, &out));          /* zero elapsed is fine */
+        CHECK(!rtc_anchor_restore(&a, 8U, &out));         /* one second past the end */
+
+        a.epoch = (uint32_t)RTC_EPOCH_MAX_SECOND + 1000U;
+        a.counter = 7U;
+        CHECK(!rtc_anchor_restore(&a, 7U, &out));
+    }
+
+    CTEST_CASE("NULL arguments are refused");
+    CHECK(!rtc_anchor_restore(NULL, 0U, &out));
+    a.epoch = 1000U;
+    a.counter = 0U;
+    CHECK(!rtc_anchor_restore(&a, 5U, NULL));
+}
+
 CTEST_MAIN("rtc calendar")
 {
     test_known_anchors();
@@ -217,4 +369,5 @@ CTEST_MAIN("rtc calendar")
     test_roundtrip_sweep();
     test_validation_rejects();
     test_weekday_continuity();
+    test_anchor_reconstruction();
 }

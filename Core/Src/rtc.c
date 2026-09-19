@@ -31,8 +31,10 @@ void MX_RTC_Init(void)
 {
 
   /* USER CODE BEGIN RTC_Init 0 */
-  /* CubeMX resets the calendar unconditionally below. Snapshot the running clock
-   * first so rtc_service_restore() can put it back after MX_RTC_Init returns. */
+  /* CubeMX resets the calendar unconditionally below, which also overwrites the
+   * hardware counter. Snapshot the backup-domain anchor and read the counter here,
+   * while both still describe the time the RTC reached, so
+   * rtc_service_restore() can reconstruct the elapsed interval afterwards. */
   rtc_service_preserve();
   /* USER CODE END RTC_Init 0 */
 

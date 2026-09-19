@@ -151,3 +151,33 @@ uint8_t rtc_weekday(uint16_t year, uint8_t month, uint8_t day)
     }
     return (uint8_t)w;
 }
+
+uint32_t rtc_counter_elapsed(uint32_t counter_ref, uint32_t counter_now)
+{
+    return (uint32_t)(counter_now - counter_ref);
+}
+
+bool rtc_anchor_restore(const rtc_anchor_t *anchor, uint32_t counter_now,
+                        uint32_t *epoch_out)
+{
+    uint64_t sum;
+
+    if (anchor == NULL || epoch_out == NULL) {
+        return false;
+    }
+    if (anchor->epoch > (uint32_t)RTC_EPOCH_MAX_SECOND) {
+        return false;
+    }
+
+    sum = (uint64_t)anchor->epoch
+        + (uint64_t)rtc_counter_elapsed(anchor->counter, counter_now);
+
+    /* A counter that was reset while the backup domain kept its anchor produces a
+     * wrapped, enormous delta here. Refusing is correct: the alternative is
+     * confidently reporting a date in the next century. */
+    if (sum > (uint64_t)RTC_EPOCH_MAX_SECOND) {
+        return false;
+    }
+    *epoch_out = (uint32_t)sum;
+    return true;
+}

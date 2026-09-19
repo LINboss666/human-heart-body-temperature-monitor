@@ -55,6 +55,50 @@ void rtc_from_epoch(uint32_t epoch, rtc_datetime_t *dt);
 /** 0=Sunday..6=Saturday for a valid date, computed from the epoch day count. */
 uint8_t rtc_weekday(uint16_t year, uint8_t month, uint8_t day);
 
+/* --------------------------------------------------- power-loss continuity */
+
+/**
+ * The supported epoch window as a value, not just as a year range.
+ * 4102444799 = 2099-12-31T23:59:59Z; asserted against rtc_to_epoch() by
+ * tests/host/test_rtc_calendar.c rather than trusted as a literal.
+ */
+#define RTC_EPOCH_MIN_SECOND  0U
+#define RTC_EPOCH_MAX_SECOND  4102444799UL
+
+/**
+ * An absolute time paired with the hardware counter reading taken at that same
+ * instant. This is what makes elapsed time survivable across a power interruption.
+ *
+ * The STM32F1 RTC peripheral is a 32-bit seconds counter in the backup domain;
+ * unlike newer parts it holds no calendar. HAL_RTC_GetTime() folds whole days out
+ * of that counter into hrtc->DateToUpdate, which is RAM and is lost when power
+ * goes. So after VDD removal with VBAT still applied, the counter is the only
+ * evidence of how long the clock was running, and an epoch alone cannot say.
+ */
+typedef struct {
+    uint32_t epoch;     /**< absolute seconds at the instant counter was read */
+    uint32_t counter;   /**< raw RTC counter at that same instant */
+} rtc_anchor_t;
+
+/**
+ * Seconds the hardware counter advanced between two readings.
+ *
+ * Subtraction on uint32_t is defined modulo 2^32, which is exactly the wrap the
+ * counter itself performs (every 136 years), so no special case is needed.
+ */
+uint32_t rtc_counter_elapsed(uint32_t counter_ref, uint32_t counter_now);
+
+/**
+ * Reconstruct the absolute time at counter_now from a stored anchor.
+ *
+ * Returns false rather than invent a timestamp when the anchor itself is outside
+ * the supported window, or when the implied elapsed time would push past
+ * 2099-12-31 -- which is also how a counter that was reset underneath a surviving
+ * backup domain is caught, since its delta wraps to a multi-decade jump.
+ */
+bool rtc_anchor_restore(const rtc_anchor_t *anchor, uint32_t counter_now,
+                        uint32_t *epoch_out);
+
 #ifdef __cplusplus
 }
 #endif
