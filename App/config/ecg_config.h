@@ -70,7 +70,7 @@ typedef enum {
 
 /**
  * Right shift applied to the squared derivative. Sized from measurement, not
- * guesswork: with the 5-44 Hz QRS band the derivative of a physiologically sharp
+ * guesswork: over the QRS band the derivative of a physiologically sharp
  * R wave stays below ~800 counts, so >>6 keeps the square under 65535 and the
  * uint16 storage clamp in ecg_signal.c stays a guard rather than a working limit.
  */

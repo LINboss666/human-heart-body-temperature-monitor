@@ -21,6 +21,7 @@
 
 #include "ecg/ecg_signal.h"
 #include "ecg/ecg_hr.h"
+#include "ecg_filter_coeff.h"
 
 /* M_PI is a BSD-ism, not C99; the host test needs it and nothing else does. */
 #ifndef M_PI
@@ -365,6 +366,76 @@ static void test_ecg_ms_macros(void)
     CHECK_EQ(ECG_RAW_TO_MV(0U), 0);
 }
 
+/** Mean |display| is proportional to output amplitude, so ratios are gain. */
+static double gain_db(int64_t at, int64_t reference)
+{
+    if (at <= 0 || reference <= 0) {
+        return -999.0;
+    }
+    return 20.0 * log10((double)at / (double)reference);
+}
+
+/*
+ * The generated coefficient header must describe the filter that is actually
+ * built. Both the display comb and the QRS low-pass are 20-tap moving averages at
+ * 1 kHz, so they cannot have different -3 dB corners -- which is exactly how a
+ * stale 43.8 Hz figure survived here for a revision, measured as it was against
+ * the cascade's own gain at 1 Hz (inside the 5 Hz high-pass's stop band).
+ *
+ * ECG_NOTCH_50HZ is required, not OFF: with the notch off the comb is a one-tap
+ * passthrough and the response is flat by construction, which is what an earlier
+ * draft of this test accidentally measured.
+ */
+static void test_boxcar_response_matches_its_documented_corner(void)
+{
+    int64_t ref, at10, at22, at26, at30;
+
+    CTEST_CASE("the structure is the one the coefficients were derived for");
+    CHECK_EQ(ECG_FILTER_DESIGN_FS, 1000UL);
+    CHECK_EQ(ECG_COMB_TAPS_50HZ, 20U);
+    CHECK_EQ(ECG_QRS_LP_TAPS, 20U);
+    CHECK_EQ(ECG_BOX_MAX_TAPS, 20U);
+    /* FS/N, exactly, for a boxcar of N taps. */
+    CHECK_EQ((uint32_t)(ECG_FILTER_DESIGN_FS / ECG_COMB_TAPS_50HZ),
+             (uint32_t)ECG_COMB_50HZ_NULL_HZ);
+
+    CTEST_CASE("two 20-tap sections cannot have two different corners");
+    CHECK_EQ(ECG_QRS_LP_M3DB_HZ, ECG_MA20_M3DB_HZ);
+    CHECK(ECG_QRS_LP_M3DB_HZ > 20.0f && ECG_QRS_LP_M3DB_HZ < 24.0f);
+
+    CTEST_CASE("the QRS band is a band-pass well below 44 Hz");
+    CHECK(ECG_QRS_BAND_LO_HZ < ECG_QRS_PEAK_HZ);
+    CHECK(ECG_QRS_PEAK_HZ < ECG_QRS_BAND_HI_HZ);
+    /* The specific false claim this replaces. */
+    CHECK(ECG_QRS_BAND_HI_HZ < 40.0f);
+    CHECK(ECG_QRS_BAND_LO_HZ > 2.0f && ECG_QRS_BAND_LO_HZ < 6.0f);
+
+    CTEST_CASE("the shipping display path measures -3 dB near 22 Hz");
+    /* 5 Hz sits above the 0.62 Hz high-pass knee and well below the corner, so it
+     * reads as the passband reference. */
+    ref  = display_abs_sum_at(5.0,  ECG_NOTCH_50HZ, 2000U);
+    at10 = display_abs_sum_at(10.0, ECG_NOTCH_50HZ, 2000U);
+    at22 = display_abs_sum_at(22.0, ECG_NOTCH_50HZ, 2000U);
+    at26 = display_abs_sum_at(26.0, ECG_NOTCH_50HZ, 2000U);
+    at30 = display_abs_sum_at(30.0, ECG_NOTCH_50HZ, 2000U);
+    CHECK(ref > 100);
+    printf("      gain  5Hz=ref  10Hz=%.2f  22Hz=%.2f  26Hz=%.2f  30Hz=%.2f dB\n",
+           gain_db(at10, ref), gain_db(at22, ref),
+           gain_db(at26, ref), gain_db(at30, ref));
+
+    /* Analytic MA(20) at 1 kHz relative to 5 Hz: -0.24, -2.82, -4.17, -5.78 dB.
+     * Tolerances of +-0.9 dB absorb the rectifier and the high-pass droop. */
+    CHECK(gain_db(at10, ref) > -1.2 && gain_db(at10, ref) < 0.4);
+    CHECK(gain_db(at22, ref) > -3.8 && gain_db(at22, ref) < -1.9);
+    CHECK(gain_db(at26, ref) > -5.2 && gain_db(at26, ref) < -3.2);
+    CHECK(gain_db(at30, ref) > -6.8 && gain_db(at30, ref) < -4.8);
+    /* Monotonic through the corner, and the null really is at FS/20. */
+    CHECK(at10 > at22);
+    CHECK(at22 > at26);
+    CHECK(at26 > at30);
+    CHECK(display_abs_sum_at(50.0, ECG_NOTCH_50HZ, 2000U) < 10);
+}
+
 CTEST_MAIN("ecg pipeline")
 {
     s_lcg = 20260918U;
@@ -376,5 +447,6 @@ CTEST_MAIN("ecg pipeline")
     test_implausible_rr_is_rejected();
     test_reading_expires_when_beats_stop();
     test_notch_is_a_measured_comb_null();
+    test_boxcar_response_matches_its_documented_corner();
     test_ecg_ms_macros();
 }
