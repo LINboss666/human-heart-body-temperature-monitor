@@ -26,6 +26,7 @@
 #include "ecg_hr.h"
 #include "kk_oled.h"
 #include "kk_ui.h"
+#include "oled_bringup_test.h"
 #include "oled_bus.h"
 #include "protocol.h"
 #include "protocol_service.h"
@@ -516,6 +517,11 @@ void ui_app_init(void)
     s_display_present = (ost == OLED_OK);
     diagnostics()->oled_present = s_display_present;
     diagnostics()->oled_address = oled_bus_address_7bit();
+#if OLED_BRINGUP_TEST
+    /* DEBUG MIRROR ONLY. The bring-up test needs the value this function already
+     * has and then only records as a boolean. */
+    g_oled_test.oled_init_status = (uint8_t)ost;
+#endif
 
     memset(&app, 0, sizeof(app));
     app.root_page = PAGE_MAIN;
@@ -543,6 +549,19 @@ void ui_app_init(void)
     app.texts.message_title = "NOTICE";
 
     st = KK_UI_Init(&app);
+#if OLED_BRINGUP_TEST
+    /* DEBUG MIRROR ONLY. Below, a rejected description is reduced to one
+     * diagnostics byte that later modules overwrite; the test needs the status
+     * itself, and the error record KK_UI attached to it. */
+    g_oled_test.kk_ui_init_status = (uint8_t)st;
+    if (st != KK_UI_OK) {
+        KK_UI_ErrorInfo init_err;
+        while (KK_UI_PollError(&init_err)) {
+            oled_bringup_note_ui_error((uint8_t)init_err.code, init_err.page,
+                                       init_err.index);
+        }
+    }
+#endif
     if (st != KK_UI_OK) {
         /* A rejected description means these tables disagree with the library.
          * Recorded rather than trapped: monitoring and the PC link both work with
@@ -602,12 +621,27 @@ void ui_app_update(uint32_t now_ms)
     in.keys = buttons_raw_mask();
     in.encoder_delta = 0;
 
+#if OLED_BRINGUP_TEST
+    {
+        /* DEBUG MIRROR ONLY. The production path discards this status; the test
+         * cannot tell "the UI refreshed" from "the UI refused" without it. */
+        KK_UI_Status us = KK_UI_Update(now_ms, in);
+        g_oled_test.kk_ui_update_status = (uint8_t)us;
+        if (g_oled_test.ui_update_count < 0xFFFFU) {
+            g_oled_test.ui_update_count++;
+        }
+    }
+#else
     (void)KK_UI_Update(now_ms, in);
+#endif
 
     while (KK_UI_PollEvent(&ev)) {
         apply_event(ev);
     }
     while (KK_UI_PollError(&ei)) {
+#if OLED_BRINGUP_TEST
+        oled_bringup_note_ui_error((uint8_t)ei.code, ei.page, ei.index);
+#endif
         diagnostics_note_error((uint8_t)ei.code);
     }
 

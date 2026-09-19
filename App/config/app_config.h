@@ -161,4 +161,34 @@
 #define OLED_BRINGUP_PATTERN            OLED_BRINGUP_PATTERN_FULL_WHITE
 #endif
 
+/**
+ * What the enabled test does.
+ *
+ * PANEL  - the scan / OLED_Init / full-frame white sequence. Already run on the
+ *          real module and passed, so it is no longer the interesting question.
+ * KK_UI  - the real ui_app_init() and then the real ui_app_update() loop, with the
+ *          shipping page tables, fonts and bindings, which is the layer where the
+ *          frozen firmware's black panel has to be explained.
+ */
+#define OLED_BRINGUP_TEST_PANEL         0U
+#define OLED_BRINGUP_TEST_KK_UI         1U
+
+#ifndef OLED_BRINGUP_TEST_WHICH
+#define OLED_BRINGUP_TEST_WHICH         OLED_BRINGUP_TEST_KK_UI
+#endif
+
+/** How long the KK_UI test drives the real update path before parking. */
+#ifndef OLED_BRINGUP_UI_RUN_MS
+#define OLED_BRINGUP_UI_RUN_MS          2000U
+#endif
+
+/** Hard iteration cap, so a dead SysTick cannot trap the test in its loop. */
+#ifndef OLED_BRINGUP_UI_MAX_FRAMES
+#define OLED_BRINGUP_UI_MAX_FRAMES      4000U
+#endif
+
+/** True while the KK_UI variant owns the panel, i.e. the UI must keep running. */
+#define OLED_BRINGUP_UI_ACTIVE \
+    ((OLED_BRINGUP_TEST != 0U) && (OLED_BRINGUP_TEST_WHICH == OLED_BRINGUP_TEST_KK_UI))
+
 #endif /* APP_CONFIG_H */

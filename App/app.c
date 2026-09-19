@@ -65,7 +65,7 @@ static void consume_blocks(uint32_t now_ms)
 
             temperature_feed(temp_code);
 
-#if !OLED_BRINGUP_TEST
+#if !OLED_BRINGUP_TEST || OLED_BRINGUP_UI_ACTIVE
             if (ui_app_on_ecg_page()) {
                 ui_app_push_waveform(es.display, es.sample_index);
             }
@@ -109,12 +109,10 @@ void App_Init(void)
     /* Controller profile and address probe must happen before OLED_Init, which
      * reads both. A panel that does not answer is recorded, not fatal.
      *
-     * In bring-up-test mode the test owns all of that, including the profile, and
-     * KK_UI is never initialised - a page table would only repaint over the one
-     * image whose result is being read. */
-#if OLED_BRINGUP_TEST
-    oled_bringup_test_run();
-#else
+     * In bring-up-test mode the test does its own profile and probe, at its own
+     * point below, because it also has to run after the services the interface
+     * reads. */
+#if !OLED_BRINGUP_TEST
     oled_bus_apply_profile((oled_controller_t)OLED_CONTROLLER_SELECTED);
     (void)oled_bus_scan();
 #endif
@@ -135,10 +133,17 @@ void App_Init(void)
         diagnostics_note_error(DIAG_ERR_RTC_SYNC);
     }
     protocol_service_init();
-#if !OLED_BRINGUP_TEST
+#if OLED_BRINGUP_TEST
+    /* Here, not at the top, because the interface reads the RTC, the protocol
+     * service and the button state. The PANEL variant keeps KK_UI out of the
+     * boot entirely - a page table would repaint over the image being judged -
+     * and the KK_UI variant calls ui_app_init() itself, as the thing under test. */
+    oled_bringup_test_run();
+#else
     ui_app_init();
 #endif
 
+#if !OLED_BRINGUP_UI_ACTIVE
     if (!acquisition_start()) {
         /* Calibration or DMA arming failed. Everything that does not need the ADC
          * still runs; adc_running stays clear on the STATUS page and in the
@@ -146,6 +151,12 @@ void App_Init(void)
          * the device trapping in Error_Handler() with nothing on screen. */
         diagnostics_note_error(DIAG_ERR_ACQUISITION_START);
     }
+#else
+    /* The KK_UI variant deliberately leaves the ADC, TIM3 and DMA1_Channel1
+     * unstarted: the question is what the interface does to the panel, and a
+     * 1 kHz sampling interrupt in the background would add a second thing to
+     * rule out. Production starts acquisition; this branch does not. */
+#endif
 
     s_recording = false;
     s_app_started = true;
@@ -192,7 +203,10 @@ void App_Loop(void)
     consume_blocks(now_ms);
     rtc_service_poll(now_ms);
     protocol_service_poll(now_ms);
-#if !OLED_BRINGUP_TEST
+#if !OLED_BRINGUP_TEST || OLED_BRINGUP_UI_ACTIVE
+    /* The KK_UI variant keeps the real interface running after its measurement
+     * window closes, so a first frame that needed longer than the window still
+     * reaches the panel. The PANEL variant must not, or it would repaint white. */
     ui_app_update(now_ms);
 #endif
 
