@@ -86,7 +86,7 @@ static void test_probe_fault_is_latched_and_clears(void)
     fill(TEMP_ADC_OPEN_THRESHOLD, 1U);
     temperature_get(&t);
     CHECK(!t.probe_fault);            /* one window is not enough to conclude */
-    fill(TEMP_ADC_OPEN_THRESHOLD, TEMP_PROBE_FAULT_CONFIRM);
+    fill(TEMP_ADC_OPEN_THRESHOLD, TEMP_PROBE_FAULT_CONFIRM_WINDOWS);
     temperature_get(&t);
     CHECK(t.probe_fault);
     /* Still uncalibrated, so the state is not mislabelled as a probe reading. */
@@ -94,7 +94,7 @@ static void test_probe_fault_is_latched_and_clears(void)
     CHECK(!t.valid);
 
     CTEST_CASE("returning to range clears the fault after the confirm window");
-    fill(2000U, TEMP_PROBE_OK_CONFIRM);
+    fill(2000U, TEMP_PROBE_OK_CONFIRM_WINDOWS);
     temperature_get(&t);
     CHECK(!t.probe_fault);
 }
@@ -135,60 +135,97 @@ static void test_get_is_null_safe(void)
 }
 
 /*
- * The confirmation streaks count averaged updates, not samples. That distinction
- * was once written down as "125 ms at 1 kHz" for a delay that is 31.25 s, so the
- * boundary is pinned here in both units: exactly how many windows, and how many
- * milliseconds that costs at the shipping decimation.
+ * Probe confirmation is counted in averaged windows, not samples and not
+ * milliseconds: the streaks only advance once TEMP_AVERAGE_WINDOW samples have
+ * been folded. These tests walk window by window so the latch and clear points are
+ * exact, and check that one odd window cannot decide anything in either direction.
  */
-static void test_probe_confirm_latency_is_in_updates(void)
+static void test_probe_confirm_is_window_by_window(void)
 {
     temperature_t t;
+    uint32_t i;
 
-    CTEST_CASE("one update is 250 ms at the shipping settings");
+    CTEST_CASE("the window unit and the derived milliseconds agree");
     CHECK_EQ(TEMP_UPDATE_PERIOD_MS, 250U);
-    CHECK_EQ((uint32_t)TEMP_AVERAGE_WINDOW, 250U);
+    CHECK_EQ(TEMP_PROBE_FAULT_CONFIRM_WINDOWS * TEMP_UPDATE_PERIOD_MS,
+             TEMP_PROBE_FAULT_CONFIRM_MS);
+    CHECK_EQ(TEMP_PROBE_FAULT_CONFIRM_MS, 500U);
+    CHECK_EQ(TEMP_PROBE_OK_CONFIRM_WINDOWS * TEMP_UPDATE_PERIOD_MS,
+             TEMP_PROBE_OK_CONFIRM_MS);
+    CHECK_EQ(TEMP_PROBE_OK_CONFIRM_MS, 1000U);
+    /* Recovery is deliberately the slower of the two, so a marginal contact
+     * cannot flicker the alarm. */
+    CHECK(TEMP_PROBE_OK_CONFIRM_WINDOWS > TEMP_PROBE_FAULT_CONFIRM_WINDOWS);
 
-    CTEST_CASE("a fault latches on exactly the CONFIRM-th update, not earlier");
+    CTEST_CASE("one fault window alone does not latch");
     temperature_init();
-    fill(TEMP_ADC_OPEN_THRESHOLD, TEMP_PROBE_FAULT_CONFIRM - 1U);
+    fill(TEMP_ADC_OPEN_THRESHOLD, 1U);
     temperature_get(&t);
     CHECK(!t.probe_fault);
+    CHECK_EQ(t.updates, 1U);
+
+    CTEST_CASE("the second consecutive fault window latches it");
     fill(TEMP_ADC_OPEN_THRESHOLD, 1U);
     temperature_get(&t);
     CHECK(t.probe_fault);
+    CHECK_EQ(t.updates, (uint32_t)TEMP_PROBE_FAULT_CONFIRM_WINDOWS);
 
-    CTEST_CASE("latching a fault costs 31.25 s of wall clock, not 125 ms");
-    CHECK_EQ((uint32_t)TEMP_PROBE_FAULT_CONFIRM * TEMP_UPDATE_PERIOD_MS, 31250U);
-    temperature_get(&t);
-    CHECK_EQ(t.updates, (uint32_t)TEMP_PROBE_FAULT_CONFIRM);
-
-    CTEST_CASE("clearing takes exactly TEMP_PROBE_OK_CONFIRM further updates");
-    {
-        uint32_t before;
-
-        temperature_get(&t);
-        before = t.updates;
-        fill(2000U, TEMP_PROBE_OK_CONFIRM - 1U);
-        temperature_get(&t);
-        CHECK(t.probe_fault);             /* still latched one update short */
-        CHECK_EQ(t.updates, before + TEMP_PROBE_OK_CONFIRM - 1U);
+    CTEST_CASE("recovery needs the full healthy count, not one good window");
+    for (i = 0U; i < TEMP_PROBE_OK_CONFIRM_WINDOWS - 1U; i++) {
         fill(2000U, 1U);
         temperature_get(&t);
-        CHECK(!t.probe_fault);
-        CHECK_EQ(t.updates, before + TEMP_PROBE_OK_CONFIRM);
+        CHECK(t.probe_fault);
     }
+    fill(2000U, 1U);
+    temperature_get(&t);
+    CHECK(!t.probe_fault);
 
-    CTEST_CASE("an alternating input never reaches either confirm count");
-    {
-        uint32_t i;
-
-        temperature_init();
-        for (i = 0U; i < 40U; i++) {
-            fill(i & 1U ? 2000U : TEMP_ADC_OPEN_THRESHOLD, 1U);
-        }
-        temperature_get(&t);
-        CHECK(!t.probe_fault);
+    CTEST_CASE("an alternating input never reaches either count");
+    temperature_init();
+    for (i = 0U; i < 40U; i++) {
+        fill(i & 1U ? 2000U : TEMP_ADC_OPEN_THRESHOLD, 1U);
     }
+    temperature_get(&t);
+    CHECK(!t.probe_fault);
+    CHECK_EQ(t.updates, 40U);
+
+    CTEST_CASE("a healthy window resets the fault streak");
+    temperature_init();
+    fill(TEMP_ADC_OPEN_THRESHOLD, TEMP_PROBE_FAULT_CONFIRM_WINDOWS - 1U);
+    temperature_get(&t);
+    CHECK(!t.probe_fault);
+    fill(2000U, 1U);                        /* breaks the run */
+    fill(TEMP_ADC_OPEN_THRESHOLD, TEMP_PROBE_FAULT_CONFIRM_WINDOWS - 1U);
+    temperature_get(&t);
+    CHECK(!t.probe_fault);
+    fill(TEMP_ADC_OPEN_THRESHOLD, 1U);      /* a fresh full run latches it */
+    temperature_get(&t);
+    CHECK(t.probe_fault);
+
+    CTEST_CASE("a fault window resets the recovery streak");
+    temperature_init();
+    fill(TEMP_ADC_OPEN_THRESHOLD, TEMP_PROBE_FAULT_CONFIRM_WINDOWS);
+    temperature_get(&t);
+    CHECK(t.probe_fault);
+    fill(2000U, TEMP_PROBE_OK_CONFIRM_WINDOWS - 1U);
+    temperature_get(&t);
+    CHECK(t.probe_fault);
+    fill(TEMP_ADC_OPEN_THRESHOLD, 1U);      /* breaks the recovery run */
+    fill(2000U, TEMP_PROBE_OK_CONFIRM_WINDOWS - 1U);
+    temperature_get(&t);
+    CHECK(t.probe_fault);
+    fill(2000U, 1U);
+    temperature_get(&t);
+    CHECK(!t.probe_fault);
+
+    CTEST_CASE("a shorted rail is a fault too, and still reports no degrees");
+    temperature_init();
+    fill(TEMP_ADC_SHORT_THRESHOLD, TEMP_PROBE_FAULT_CONFIRM_WINDOWS);
+    temperature_get(&t);
+    CHECK(t.probe_fault);
+    CHECK_EQ(t.state, TEMP_UNCALIBRATED);
+    CHECK(!t.valid);
+    CHECK_EQ(t.centi_c, 0);
 }
 
 CTEST_MAIN("temperature (uncalibrated)")
@@ -197,7 +234,7 @@ CTEST_MAIN("temperature (uncalibrated)")
     test_decimation_cadence();
     test_averaging_reduces_noise();
     test_probe_fault_is_latched_and_clears();
-    test_probe_confirm_latency_is_in_updates();
+    test_probe_confirm_is_window_by_window();
     test_alarm_bands_are_validated();
     test_get_is_null_safe();
 }

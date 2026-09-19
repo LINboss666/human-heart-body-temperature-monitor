@@ -54,17 +54,25 @@ typedef enum {
 #define TEMP_ADC_SHORT_THRESHOLD    64U                           /* UNVERIFIED */
 
 /*
- * Probe confirmation is counted in AVERAGED UPDATES, not in raw samples: the
- * streaks in temperature.c only advance when a TEMP_AVERAGE_WINDOW average
- * completes, so one step is TEMP_UPDATE_PERIOD_MS long, not 1 ms. The previous
- * comment claimed "125 ms at 1 kHz" for a value that takes 31.25 s to elapse;
- * the counts themselves are kept unchanged so no timing that was never measured
- * on hardware is being re-tuned under cover of a documentation fix.
+ * Probe confirmation is counted in AVERAGED WINDOWS, which is the unit the
+ * streaks in temperature.c actually advance in: they are only touched once a
+ * TEMP_AVERAGE_WINDOW average completes, so one step is TEMP_UPDATE_PERIOD_MS
+ * long and not 1 ms. Naming them WINDOWS_ keeps the unit in the identifier.
+ *
+ * 2 fault windows and 4 healthy windows give ~500 ms to report a detached probe
+ * and ~1 s to clear one at the shipping 1 kHz / 250-sample decimation: slow enough
+ * that no single window decides anything, fast enough to demonstrate at a bench.
+ * Recovery is the more conservative of the two on purpose, so a marginally
+ * contacting probe cannot flicker the alarm.
  */
-#define TEMP_PROBE_FAULT_CONFIRM    125U   /* x 250 ms = 31.25 s to latch a fault */
+#define TEMP_PROBE_FAULT_CONFIRM_WINDOWS  2U
+#define TEMP_PROBE_OK_CONFIRM_WINDOWS     4U
 
-/** Consecutive in-window updates before a latched fault is cleared. */
-#define TEMP_PROBE_OK_CONFIRM       250U   /* x 250 ms = 62.50 s to clear */
+/** Derived wall-clock cost of each; asserted against 500/1000 in the host test. */
+#define TEMP_PROBE_FAULT_CONFIRM_MS \
+    ((uint32_t)TEMP_PROBE_FAULT_CONFIRM_WINDOWS * TEMP_UPDATE_PERIOD_MS)
+#define TEMP_PROBE_OK_CONFIRM_MS \
+    ((uint32_t)TEMP_PROBE_OK_CONFIRM_WINDOWS * TEMP_UPDATE_PERIOD_MS)
 
 /* ---------------------------------------------------- plausible body range */
 

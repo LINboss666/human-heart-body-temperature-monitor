@@ -16,21 +16,19 @@ static uint16_t      s_count;
 static temperature_t s_out;
 
 /*
- * The three streaks below count AVERAGED UPDATES, not samples: they are only
+ * The three streaks below count AVERAGED WINDOWS, not samples: they are only
  * touched after the TEMP_AVERAGE_WINDOW guard in temperature_feed() lets a
- * reading through. One step is therefore TEMP_UPDATE_PERIOD_MS long, which at the
- * shipping settings makes a probe fault take 31.25 s to latch and 62.5 s to
- * clear. Asserting the period divides exactly keeps that arithmetic honest; if it
- * ever does not, the stated latencies in temperature_calibration.h are wrong.
+ * reading through, so one step is TEMP_UPDATE_PERIOD_MS long. The confirm counts
+ * are named _WINDOWS_ to keep that unit in the identifier, and the two assertions
+ * below hold the derivation honest: the window must be a whole number of
+ * milliseconds and must stay inside the 500 ms course requirement, or the
+ * timings stated in temperature_calibration.h stop being the real ones.
  */
 typedef char temp_update_period_is_whole_ms[
     ((uint32_t)TEMP_AVERAGE_WINDOW * 1000U % (uint32_t)ADC_SAMPLE_RATE_HZ) == 0U
     ? 1 : -1];
 typedef char temp_update_period_meets_the_500ms_requirement[
     TEMP_UPDATE_PERIOD_MS <= 500U ? 1 : -1];
-typedef char temp_fault_confirm_fits_a_streak[
-    ((uint32_t)TEMP_PROBE_FAULT_CONFIRM * TEMP_UPDATE_PERIOD_MS) > TEMP_UPDATE_PERIOD_MS
-    ? 1 : -1];
 
 static uint16_t      s_open_streak;
 static uint16_t      s_short_streak;
@@ -103,8 +101,9 @@ void temperature_feed(uint16_t adc_code)
     s_out.updates++;
 
     /* Probe presence. These thresholds are properties of a divider that has not
-     * been built, so they are range tests, not a diagnosis, and the fault has to
-     * persist for a full window before it is latched. */
+     * been built, so they are range tests, not a diagnosis, and a fault has to
+     * repeat across TEMP_PROBE_FAULT_CONFIRM_WINDOWS averaged windows before it is
+     * latched -- one window alone never changes the reported state. */
     if (avg >= TEMP_ADC_OPEN_THRESHOLD) {
         s_open_streak++;
         s_short_streak = 0U;
@@ -119,10 +118,10 @@ void temperature_feed(uint16_t adc_code)
         s_short_streak = 0U;
     }
 
-    if (s_open_streak >= TEMP_PROBE_FAULT_CONFIRM
-        || s_short_streak >= TEMP_PROBE_FAULT_CONFIRM) {
+    if (s_open_streak >= TEMP_PROBE_FAULT_CONFIRM_WINDOWS
+        || s_short_streak >= TEMP_PROBE_FAULT_CONFIRM_WINDOWS) {
         s_out.probe_fault = true;
-    } else if (s_ok_streak >= TEMP_PROBE_OK_CONFIRM) {
+    } else if (s_ok_streak >= TEMP_PROBE_OK_CONFIRM_WINDOWS) {
         s_out.probe_fault = false;
     }
 

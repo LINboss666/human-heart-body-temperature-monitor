@@ -85,7 +85,8 @@ static void test_fault_overrides_a_valid_conversion(void)
 
     CTEST_CASE("a latched probe fault is not reported as a temperature");
     temperature_init();
-    for (i = 0U; i < (uint32_t)TEMP_PROBE_FAULT_CONFIRM * TEMP_AVERAGE_WINDOW; i++) {
+    for (i = 0U; i < (uint32_t)TEMP_PROBE_FAULT_CONFIRM_WINDOWS * TEMP_AVERAGE_WINDOW;
+         i++) {
         temperature_feed(TEMP_ADC_OPEN_THRESHOLD);
     }
     temperature_get(&t);
