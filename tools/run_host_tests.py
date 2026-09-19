@@ -35,9 +35,15 @@ INCLUDES = [
     ROOT / "App" / "rtc_service",
     ROOT / "tests" / "host",
     ROOT / "App" / "ui",
+    ROOT / "App" / "buttons",
+    ROOT / "App" / "diagnostics",
+    ROOT / "App" / "display",
+    ROOT / "ThirdParty" / "kk_ui" / "include",
     ROOT / "ThirdParty" / "kk_oled" / "include",
     ROOT / "ThirdParty" / "kk_oled" / "driver",
     ROOT / "ThirdParty" / "kk_oled" / "graphics",
+    # kk_ui_internal.h, for the runtime a host test may read but not modify.
+    ROOT / "ThirdParty" / "kk_ui" / "src",
 ]
 
 # Sources linked into every test, plus any test-specific extra sources.
@@ -66,6 +72,17 @@ EXTRA_SOURCES = {
         ROOT / "App" / "ui" / "ui_fonts.c",
         ROOT / "tests" / "host" / "kk_oled_font_stubs.c",
     ],
+    # The shipping interface, on a shadow panel: ui_app.c, KK_UI and the KK_OLED
+    # graphics core exactly as they ship, with only the I2C driver and the
+    # peripheral-bound services replaced. See tests/host/ui_panel_stubs.c.
+    "test_ui_frame.c": [
+        ROOT / "App" / "ui" / "ui_app.c",
+        ROOT / "App" / "ui" / "ui_fonts.c",
+        ROOT / "App" / "diagnostics" / "diagnostics.c",
+        ROOT / "App" / "rtc_service" / "rtc_calendar.c",
+    ] + sorted((ROOT / "ThirdParty" / "kk_ui" / "src").glob("*.c"))
+      + sorted((ROOT / "ThirdParty" / "kk_oled" / "graphics").glob("*.c"))
+      + [ROOT / "tests" / "host" / "ui_panel_stubs.c"],
 }
 
 # Per-test -D flags. Applied to the whole compile, not just the test file,
@@ -73,6 +90,10 @@ EXTRA_SOURCES = {
 # itself is rebuilt against the calibration model.
 EXTRA_DEFS = {
     "test_temperature_calibrated.c": ["-DTEMP_SENSOR_MODEL=TEMP_MODEL_LINEAR_MV"],
+    # The host run judges the shipping interface, so the debug-branch test hooks
+    # (which reach for HAL-backed globals the host has no substitute for) are
+    # compiled out exactly as they are on every other branch.
+    "test_ui_frame.c": ["-DOLED_BRINGUP_TEST=0U"],
 }
 
 CFLAGS = [
