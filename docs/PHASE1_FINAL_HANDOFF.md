@@ -11,7 +11,7 @@ work, no general cleanup, no redesign of anything that already worked.
 | Starting commit | `282713b` (tip of `phase1/review-fixes`; that branch is unchanged) |
 | Predecessors | `phase1/full-system` → `phase1/review-fixes` → this branch |
 | Frozen baseline | tag `v0.1-baseline` → `eb8a795` (untouched) |
-| Files changed | 11 — 7 under `App/`, 3 under `tests/host/`, plus the docs listed in §6 |
+| Files changed | 19 — 11 of code and tests (8 under `App/`, 3 under `tests/host/`) plus 8 documentation files |
 | Firmware build | `0 Error(s), 0 Warning(s)` (full `UV4 -j0 -r` rebuild, ARMCC V5.06 u5, `-O3`, warning level 2, nothing suppressed) |
 | Footprint | `Code=38364 RO-data=3096 RW-data=380 ZI-data=7524` → flash 41840/65536 = **63.8 %**, RAM 7904/20480 = **38.6 %** |
 | Host C tests | 6 binaries, **1050 assertions, 0 failures** (was 1004) |
