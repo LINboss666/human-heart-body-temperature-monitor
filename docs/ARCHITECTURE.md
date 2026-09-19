@@ -44,7 +44,7 @@ App_Loop()  ── acquisition_take_block() ──► 128 frames per block
 | `App/ecg/ecg_hr.c` | **no** | RR history, median, HR state machine |
 | `App/temperature/` | **no** | Decimation, probe heuristics, calibration hook |
 | `App/rtc_service/rtc_calendar.c` | **no** | Epoch ↔ calendar |
-| `App/rtc_service/rtc_service.c` | yes | RTC access, backup-register epoch mirror |
+| `App/rtc_service/rtc_service.c` | yes | RTC access, backup-register anchor (epoch ↔ counter) written as a transaction |
 | `App/buttons/` | yes | Debounce, events, raw mask |
 | `App/protocol/protocol.c`, `crc16.c` | **no** | Framing, CRC, resync |
 | `App/protocol/protocol_service.c` | yes (tick only) | Batch building, command dispatch |

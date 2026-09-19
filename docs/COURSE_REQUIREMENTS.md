@@ -46,17 +46,18 @@ physical display is marked as satisfied.
 | Conversion to degrees | `TEMP_SENSOR_MODEL` is `UNCALIBRATED`, so the state is `TEMP_UNCALIBRATED`, `valid=false`, and the UI shows `--.-` | Deliberate. No invented 36.5 anywhere — `HOST VERIFIED` |
 | Refresh ≤ 500 ms | Decimation window is 250 samples at 1 kHz → a new reading every 250 ms | `SOFTWARE IMPLEMENTED` · `HOST VERIFIED` (update cadence) |
 | 0.1 °C display resolution | Internal unit is centi-degC (`int16_t`), display 0.1 °C | `SOFTWARE IMPLEMENTED` |
-| Probe disconnection detection | Range heuristics with `TEMP_ADC_OPEN/SHORT_THRESHOLD` and confirm counters, reported as `TEMP_PROBE_FAULT` | `SOFTWARE IMPLEMENTED` · thresholds `UNVERIFIED` · `HARDWARE VERIFICATION PENDING` |
+| Probe disconnection detection | Range heuristics with `TEMP_ADC_OPEN/SHORT_THRESHOLD`, confirmed over `TEMP_PROBE_FAULT_CONFIRM_WINDOWS` (2 windows ≈ 500 ms) and cleared over `TEMP_PROBE_OK_CONFIRM_WINDOWS` (4 windows ≈ 1000 ms); reported as `TEMP_PROBE_FAULT` | `SOFTWARE IMPLEMENTED` · thresholds `UNVERIFIED` · `HOST VERIFIED` (window-by-window confirm) · `HARDWARE VERIFICATION PENDING` |
 | Sensor calibration | Replace `temperature_calibration.h` and `TemperatureConvert()` | Interface exists · `HOST VERIFIED` that the linear branch converts and clamps |
 
 ## Time keeping
 
 | Requirement | Implementation | Status |
 | --- | --- | --- |
-| RTC date/time | `rtc_service` over the LSE-driven RTC, epoch seconds internally | `SOFTWARE IMPLEMENTED` |
-| Must not reset on every power-up | CubeMX unconditionally writes 2000-01-01 in `MX_RTC_Init`; the service snapshots the epoch into backup registers each second and reinstates it | `SOFTWARE IMPLEMENTED` · `HARDWARE VERIFICATION PENDING` (Stage A/B) |
+| RTC date/time | `rtc_service` over the LSE-driven RTC, epoch seconds internally. Three layers, kept distinct: the backup-domain seconds counter, the APB-visible `CNTH`/`CNTL` copies (re-acquired through RSF with a bounded timeout before any reading is trusted), and the software epoch anchored to a counter reading | `SOFTWARE IMPLEMENTED` |
+| Must not reset on every power-up | CubeMX unconditionally writes 2000-01-01 in `MX_RTC_Init`; the service writes an anchor (epoch + counter, five 16-bit backup registers) as a blank-commit → payload → valid-commit transaction and reinstates the epoch from it | `SOFTWARE IMPLEMENTED` · `HOST VERIFIED` on the pure anchor model (replay of every write prefix) · `HARDWARE VERIFICATION PENDING` (Stages A/B/O) |
 | Retains time without main power | Needs VBAT wired on the real board | `HARDWARE VERIFICATION PENDING` — never claimed by firmware (`CAP_RTC_BATTERY_BACKED` is always clear) |
-| Calendar correctness | Hinnant civil-days arithmetic, unsigned epoch, range 1970–2099 | `HOST VERIFIED`: 119 assertions, hour-by-hour round-trip 1970→2099, leap/century rules, Dec-31→Jan-1, weekday continuity |
+| Refuses a reconstruction it cannot justify | A sync timeout, a missing anchor, an unreadable counter or an implausible delta leaves the clock reported **unset** rather than guessing: losing time is safer than a wrong clock | `SOFTWARE IMPLEMENTED` · `HOST VERIFIED` |
+| Calendar correctness | Hinnant civil-days arithmetic, unsigned epoch, range 1970–2099 | `HOST VERIFIED`: 189 assertions in `tests/host/test_rtc_calendar.c` — hour-by-hour round-trip 1970→2099, leap/century rules, Dec-31→Jan-1, weekday continuity, plus the anchor model |
 | Modifiable on device | `DATE & TIME` page with KK_UI integer editors and `SET RTC` / `READ RTC` actions | `SOFTWARE IMPLEMENTED` · `HARDWARE VERIFICATION PENDING` (no panel yet) |
 | Modifiable remotely | `SET_RTC` packet; every field validated, invalid times answered with `NACK_BAD_VALUE` and the clock left untouched | `SOFTWARE IMPLEMENTED` · `HOST VERIFIED` on the Python side |
 
@@ -94,7 +95,7 @@ physical display is marked as satisfied.
 | No large Chinese font table | ASCII-only, 1113 bytes |
 | No floating point in the signal chain | All filter and detector arithmetic is integer |
 | Flash must not be faked by changing the part | Device remains `STM32F103C8`, ROM `0x08000000` size `0x10000`, RAM `0x20000000` size `0x5000` — unchanged from Phase 0 |
-| Measured footprint | `Code=38152 RO=3076 RW=380 ZI=7524` → 41608 B flash (**63.5 %** of 64 KB), 7904 B RAM (**38.6 %** of 20 KB) |
+| Measured footprint | `Code=38364 RO=3096 RW=380 ZI=7524` → 41840 B flash (**63.8 %** of 64 KB), 7904 B RAM (**38.6 %** of 20 KB) |
 | Compiler warnings | `0 Warning(s)` at Keil warning level 2, no `--diag_suppress`, no blanket warning suppression |
 
 ## Not satisfied, stated plainly

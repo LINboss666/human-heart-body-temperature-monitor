@@ -1,4 +1,4 @@
-# Hardware Test Plan — bring-up stages A…N
+# Hardware Test Plan — bring-up stages A…O
 
 For use the first time a real board exists. Each stage says what to connect, what to
 type or press, what a pass looks like, and what the most likely cause is when it does
@@ -198,8 +198,10 @@ which is correct behaviour, not a defect.
 
 **Action.** With a real front-end: disconnect one electrode and observe. Disconnect the
 temperature probe and observe.
-**Pass.** Temperature probe removal reports `PROBE FAULT` within `TEMP_PROBE_FAULT_CONFIRM`
-windows (~125 ms), and recovery within ~250 ms.
+**Pass.** Temperature probe removal reports `PROBE FAULT` after `TEMP_PROBE_FAULT_CONFIRM_WINDOWS`
+consecutive fault windows (2 windows ≈ 500 ms), and clears after
+`TEMP_PROBE_OK_CONFIRM_WINDOWS` consecutive good windows (4 windows ≈ 1000 ms). A single
+outlier window never changes the indication in either direction.
 **Lead-off:** unless the front-end provides an electrode-detection output that this
 firmware is wired to, the device will report `SIGNAL POOR` or `UNKNOWN`, **not**
 `DISCONNECTED`, and that is intended. Reporting a lead disconnection would require a
@@ -242,6 +244,44 @@ embedded chart renders a recognizable ECG and does not contain 100k points.
 `pc_monitor/export.py`. Blank chart → the series range or anchor is wrong; openpyxl will
 write a broken reference happily, which is exactly why the reopen-and-assert test exists,
 and why this stage is still on the list.
+
+## Stage O — RTC time continuity through reset and power loss
+
+**When.** Run this immediately after Stage B; it needs no analog hardware, only a booting
+board and either a debugger or the Stage L serial link.
+**What is being separated.** Three different things can be wrong, and they look the same
+from the screen:
+1. the RTC core counter in the backup domain is not running (no LSE, or no VBAT);
+2. the APB-visible `CNTH`/`CNTL` copies were not re-acquired after reset (`RSF` never set);
+3. the backup-register anchor is absent, torn, or disagrees with the counter.
+The firmware distinguishes them deliberately: only case 2 sets `rtc_service_sync_failed()`,
+and all three end in `rtc_service_is_valid() == false`, i.e. the clock reports `UNSET`.
+**Action.** Set a known time, let it run 60 s, then (a) press NRST, (b) power off for 10 s
+with VBAT applied, (c) power off with VBAT removed. Read the time after each.
+**Pass.**
+- (a) time is preserved to within a couple of seconds — the counter survived, the anchor
+  reconstruction worked.
+- (b) same, and that is the first real evidence that VBAT retention works on this board.
+- (c) the clock reports `UNSET`, not a plausible wrong time. With the backup domain lost,
+  the anchor is gone; guessing would be worse than admitting it.
+**Direct observation.** Halt and inspect `s_sync_failed`, `s_counter_valid`,
+`s_anchor_available`, `s_saved_anchor` and `s_counter_at_boot` in `rtc_service.c`. Over
+UART the STATUS packet shows only the consequences: the `rtc_valid` flag stays clear and
+`protocol_errors` is one higher than at boot, because `diagnostics_note_error()` bumps that
+counter and keeps the reason (`DIAG_ERR_RTC_SYNC`, code 201) in `last_error_code`, which no
+screen renders in this build. Read the code with a debugger.
+**Diagnosis.**
+- `s_sync_failed == 1` after a normal reset → RSF never arrived, so `RTCCLK` is not
+  running: no LSE, or the backup-domain clock mux is not LSE. Cross-check `RCC->BDCR`
+  `RSF`/`RTCRDY` and Stage B. Nothing was read from the counter in this state, by design.
+- Anchor present but time jumps backwards → `RTC_EPOCH_MAX_SECOND` rejection did not fire,
+  which would mean the counter did not actually reset; re-check with a debugger read of
+  `RCC->BDCR` `BDRST` history and of `RTC->CNTH/CNTL`.
+- Time is `UNSET` after (a) but survives (b) → the anchor write itself is being interrupted;
+  check that `rtc_service_preserve()` really runs from `USER CODE BEGIN RTC_Init 0`.
+**Not claimed.** None of this has been executed on silicon. The reconstruction logic is
+`HOST VERIFIED` as a pure model, including a replay of every prefix of the real write
+sequence; the register-level code around it is `BUILD VERIFIED` only.
 
 ---
 

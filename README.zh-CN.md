@@ -14,8 +14,8 @@
 | MCU | STM32F103C8T6 —— Cortex-M3，64 KB Flash，20 KB SRAM |
 | 工具链 | Keil MDK-ARM（AC5 / ARMCC V5.06）、STM32CubeMX 6.17.0、FW_F1 V1.8.7 |
 | 固件编译结果 | `0 Error(s), 0 Warning(s)` |
-| 占用 | `Code=38152 RO=3076 RW=380 ZI=7524` → **Flash 63.5 %，RAM 38.6 %** |
-| 宿主测试 | 6 个 C 可执行文件、1004 条断言；Python 用例 256 个，全部 0 失败 |
+| 占用 | `Code=38364 RO=3096 RW=380 ZI=7524` → **Flash 63.8 %，RAM 38.6 %** |
+| 宿主测试 | 6 个 C 可执行文件、1050 条断言；Python 用例 256 个，全部 0 失败 |
 | 已在硬件上验证 | **一项都没有。** 见 [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) |
 | Phase 0 基线 | tag `v0.1-baseline`，commit `eb8a795` |
 
@@ -158,7 +158,7 @@ python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
 | 已做到的、有证据的 | 未被声称的 |
 | --- | --- |
 | 干净编译通过，且没有关闭任何告警 | 任何来自人体的测量 |
-| 1004 条宿主断言跑在实际出货的整数代码上 | RTC 晶振能否起振、VBAT 能否保持 |
+| 1050 条宿主断言跑在实际出货的整数代码上 | RTC 晶振能否起振、VBAT 能否保持 |
 | C 与 Python 两侧协议逐字节对齐（21 条 C 生成帧回放） | 屏幕上是否真的出现过任何一个像素 |
 | 日历 1970→2099 逐小时往返测试 | ±2 bpm 的心率精度 |
 | 字库能被厂商自己的解码器解出 | 前端增益或偏置是否正确 |
@@ -186,10 +186,11 @@ python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
 | [docs/PROTOCOL.md](docs/PROTOCOL.md) | 线上格式与带宽推算 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 数据流、遵循的规则、已知弱点 |
 | [docs/COURSE_REQUIREMENTS.md](docs/COURSE_REQUIREMENTS.md) | 逐条需求的状态 |
-| [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) | 台架上手测试，阶段 A–N |
+| [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) | 台架上手测试，阶段 A–O |
 | [docs/KK_UI_NOTES.md](docs/KK_UI_NOTES.md) | 上游到底是什么，以及本项目的符合性 |
 | [docs/UPSTREAM.md](docs/UPSTREAM.md) | 第三方来源与授权 |
-| [docs/REVIEW_HANDOFF.md](docs/REVIEW_HANDOFF.md) · [PHASE1_REVIEW_HANDOFF.md](docs/PHASE1_REVIEW_HANDOFF.md) · [PHASE1_REVIEW_FIX_HANDOFF.md](docs/PHASE1_REVIEW_FIX_HANDOFF.md) | 独立代码审查交接包，以及上一轮审查修了什么 |
+| [docs/REVIEW_HANDOFF.md](docs/REVIEW_HANDOFF.md) · [PHASE1_REVIEW_HANDOFF.md](docs/PHASE1_REVIEW_HANDOFF.md) · [PHASE1_REVIEW_FIX_HANDOFF.md](docs/PHASE1_REVIEW_FIX_HANDOFF.md) · [PHASE1_FINAL_HANDOFF.md](docs/PHASE1_FINAL_HANDOFF.md) | 独立代码审查交接包，以及每一轮改了什么 |
 
-Phase 0 冻结在 tag `v0.1-baseline`。Phase 1 在分支 `phase1/full-system` 上。
+Phase 0 冻结在 tag `v0.1-baseline`。Phase 1 软件冻结在分支 `phase1/final-fixes`，它是审查链
+`phase1/full-system` → `phase1/review-fixes` → `phase1/final-fixes` 的末端。
 两者都不构成"这是一台完成度合格的仪器"的声明。

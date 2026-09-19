@@ -14,6 +14,13 @@
 | Golden vectors | regenerate with **no diff** → wire format unchanged → `PROTOCOL_VERSION` stays **2** |
 | Hardware verified | **None.** Unchanged by this pass |
 
+> **Superseded on three points by [`PHASE1_FINAL_HANDOFF.md`](PHASE1_FINAL_HANDOFF.md)**,
+> which is the current head of the review chain: the footprint and host-test totals in the
+> table above are the `phase1/review-fixes` numbers, and §1's temperature-probe timings
+> ("31.25 s / 62.5 s", one window per count) describe the confirmation scheme this pass
+> left in place, which the final pass deliberately retuned to 2 and 4 windows. Everything
+> else here still describes the code as it stands.
+
 Read [`PHASE1_REVIEW_HANDOFF.md`](PHASE1_REVIEW_HANDOFF.md) for the Phase 1 state
 this pass started from. This document only records what the review found, whether
 each claim held, and what changed.

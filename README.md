@@ -16,8 +16,8 @@
 | MCU | STM32F103C8T6 — Cortex-M3, 64 KB flash, 20 KB SRAM |
 | Toolchain | Keil MDK-ARM (AC5 / ARMCC V5.06), STM32CubeMX 6.17.0, FW_F1 V1.8.7 |
 | Firmware build | `0 Error(s), 0 Warning(s)` |
-| Footprint | `Code=38152 RO=3076 RW=380 ZI=7524` → **63.5 % flash, 38.6 % RAM** |
-| Host tests | 6 C binaries, 1004 assertions · 256 pytest cases, 0 failures |
+| Footprint | `Code=38364 RO=3096 RW=380 ZI=7524` → **63.8 % flash, 38.6 % RAM** |
+| Host tests | 6 C binaries, 1050 assertions · 256 pytest cases, 0 failures |
 | Hardware verified | **None.** See [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) |
 | Phase 0 baseline | tag `v0.1-baseline`, commit `eb8a795` |
 
@@ -167,7 +167,7 @@ marked, so they cannot be exported as a measurement.
 | Done and demonstrated | Not claimed |
 | --- | --- |
 | Compiles clean with no warning suppression | Any measurement from a human body |
-| 1004 host C assertions on the shipping integer code | That the RTC crystal starts, or VBAT retention |
+| 1050 host C assertions on the shipping integer code | That the RTC crystal starts, or VBAT retention |
 | 256 Python cases; 21 frames replayed from the C encoder | That any pixel ever appeared on a panel |
 | Calendar round-trip 1970→2099, hour by hour | ±2 bpm heart-rate accuracy |
 | Font decodes under the vendor's own decoder | That the front-end gain or bias is right |
@@ -197,10 +197,12 @@ Everything pending is itemised with a procedure in
 | [docs/PROTOCOL.md](docs/PROTOCOL.md) | Wire format and bandwidth arithmetic |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow, rules followed, known weaknesses |
 | [docs/COURSE_REQUIREMENTS.md](docs/COURSE_REQUIREMENTS.md) | Requirement-by-requirement status |
-| [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) | Bench bring-up, stages A–N |
+| [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) | Bench bring-up, stages A–O |
 | [docs/KK_UI_NOTES.md](docs/KK_UI_NOTES.md) | What the upstream really is, and conformance |
 | [docs/UPSTREAM.md](docs/UPSTREAM.md) | Third-party provenance and licences |
-| [docs/REVIEW_HANDOFF.md](docs/REVIEW_HANDOFF.md) · [PHASE1_REVIEW_HANDOFF.md](docs/PHASE1_REVIEW_HANDOFF.md) · [PHASE1_REVIEW_FIX_HANDOFF.md](docs/PHASE1_REVIEW_FIX_HANDOFF.md) | Independent review handoffs, and what the last review fixed |
+| [docs/REVIEW_HANDOFF.md](docs/REVIEW_HANDOFF.md) · [PHASE1_REVIEW_HANDOFF.md](docs/PHASE1_REVIEW_HANDOFF.md) · [PHASE1_REVIEW_FIX_HANDOFF.md](docs/PHASE1_REVIEW_FIX_HANDOFF.md) · [PHASE1_FINAL_HANDOFF.md](docs/PHASE1_FINAL_HANDOFF.md) | Independent review handoffs, and what each pass changed |
 
-Phase 0 is frozen at tag `v0.1-baseline`. Phase 1 lives on branch `phase1/full-system`.
-Neither is a claim of a finished instrument.
+Phase 0 is frozen at tag `v0.1-baseline`. Phase 1 software is frozen on branch
+`phase1/final-fixes`, which is the head of the review chain
+`phase1/full-system` → `phase1/review-fixes` → `phase1/final-fixes`. Neither is a claim of
+a finished instrument.

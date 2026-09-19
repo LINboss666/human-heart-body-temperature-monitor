@@ -13,6 +13,14 @@
 | Python tests | **256 cases, 0 failures** (incl. headless GUI; was 251 here) |
 | Hardware verified | **None.** See §5 |
 
+> **Historical.** This is the handoff *into* the review of `phase1/full-system`. The
+> footprint and test counts above are no longer current, and §4's anchor description predates
+> two later changes: the DR1 word is now a commit marker written blank-then-valid around the
+> payload rather than a constant magic, and the counter read that feeds it is preceded by a
+> bounded RSF re-acquisition. See
+> [`PHASE1_REVIEW_FIX_HANDOFF.md`](PHASE1_REVIEW_FIX_HANDOFF.md) and
+> [`PHASE1_FINAL_HANDOFF.md`](PHASE1_FINAL_HANDOFF.md) for the current state.
+
 Read [`README.md`](../README.md) first for what the project claims, and
 [`docs/COURSE_REQUIREMENTS.md`](COURSE_REQUIREMENTS.md) for the per-requirement
 status table. This document is only about *where to look for problems*.
