@@ -6,7 +6,7 @@
 | Starting commit | `b10c07fc09629596e387c96c5f1424ad81392e20` |
 | Review this | the branch tip. The six code fixes are `5f02b33..a805625`; `7993e1f` and `0b0adfc` after them change only documentation and one over-strict GUI assertion |
 | Frozen baseline | tag `v0.1-baseline` → `eb8a795` (untouched) |
-| Change set | 30 files, +984 / −250 |
+| Change set | 37 files, +1337 / −276, of which the six code+test fixes are 30 files |
 | Firmware build | `0 Error(s), 0 Warning(s)` (full `-r` rebuild) |
 | Footprint | `Code=38152 RO=3076 RW=380 ZI=7524` → flash 41608/65536 = **63.5 %**, RAM 7904/20480 = **38.6 %** |
 | Host C tests | 6 binaries, **1004 assertions, 0 failures** (was 901) |
