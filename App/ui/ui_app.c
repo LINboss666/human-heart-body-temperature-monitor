@@ -192,6 +192,69 @@ static const KK_UI_InfoPage info_pages[] = {
     { "ABOUT",       about_rows,  (uint16_t)(sizeof(about_rows) / sizeof(about_rows[0])) }
 };
 
+/*
+ * The application description, at file scope on purpose.
+ *
+ * KK_UI_Init() stores the pointer it is given and reads this struct - routes,
+ * page tables, strings, fonts, binding descriptors - on every frame for the rest
+ * of the run. It does not copy it. So the object has to outlive the interface,
+ * which a local inside ui_app_init() does not: the frozen firmware passed exactly
+ * such a local, and after that function returned the library was describing the UI
+ * out of a dead stack frame. Validation still passed, because it happens while the
+ * local is alive, so every layer reported OK and the panel stayed black. Found on
+ * real hardware on 2026-09-19; see docs/KK_UI_NOTES.md.
+ *
+ * const is correct and does not constrain the state: the binding members are
+ * pointers to the mutable statics above, and the descriptor itself never changes.
+ * Home pages and confirm dialogs are absent, so those pairs stay NULL and zero -
+ * but every font and text pointer still has to be non-NULL, because
+ * kk_ui_valid_texts() checks all nine of them regardless of which templates are
+ * enabled.
+ */
+static const KK_UI_App s_ui_app = {
+    .root_page = PAGE_MAIN,
+
+    .routes = routes,
+    .route_count = (uint16_t)(sizeof(routes) / sizeof(routes[0])),
+
+    .home_pages = NULL,
+    .home_page_count = 0U,
+
+    .menu_pages = menu_pages,
+    .menu_page_count = (uint16_t)(sizeof(menu_pages) / sizeof(menu_pages[0])),
+
+    .info_pages = info_pages,
+    .info_page_count = (uint16_t)(sizeof(info_pages) / sizeof(info_pages[0])),
+
+    .custom_page_count = 1U,
+
+    .int_bindings = int_bindings,
+    .int_binding_count = (uint16_t)(sizeof(int_bindings) / sizeof(int_bindings[0])),
+
+    .bool_bindings = bool_bindings,
+    .bool_binding_count = (uint16_t)(sizeof(bool_bindings) / sizeof(bool_bindings[0])),
+
+    .confirm_descs = NULL,
+    .confirm_desc_count = 0U,
+
+    .fonts = {
+        /* Three slots, one table: hierarchy comes from layout rather than from a
+         * second typeface, because every extra font is real Flash on a 64 KB part. */
+        .home_font = ui_font_body,
+        .title_font = ui_font_body,
+        .body_font = ui_font_body
+    },
+
+    .texts = {
+        .return_text = "BACK",
+        .cancel_text = "CANCEL",
+        .confirm_text = "OK",
+        .on_text = "ON",
+        .off_text = "OFF",
+        .message_title = "NOTICE"
+    }
+};
+
 /* ------------------------------------------------------------ ECG trace */
 
 /*
@@ -493,7 +556,6 @@ static void seed_from_rtc(void)
 
 void ui_app_init(void)
 {
-    KK_UI_App app;
     KK_UI_Status st;
     OLED_Status ost;
 
@@ -517,32 +579,7 @@ void ui_app_init(void)
     diagnostics()->oled_present = s_display_present;
     diagnostics()->oled_address = oled_bus_address_7bit();
 
-    memset(&app, 0, sizeof(app));
-    app.root_page = PAGE_MAIN;
-    app.routes = routes;
-    app.route_count = (uint16_t)(sizeof(routes) / sizeof(routes[0]));
-    app.menu_pages = menu_pages;
-    app.menu_page_count = (uint16_t)(sizeof(menu_pages) / sizeof(menu_pages[0]));
-    app.info_pages = info_pages;
-    app.info_page_count = (uint16_t)(sizeof(info_pages) / sizeof(info_pages[0]));
-    app.custom_page_count = 1U;
-    app.int_bindings = int_bindings;
-    app.int_binding_count = (uint16_t)(sizeof(int_bindings) / sizeof(int_bindings[0]));
-    app.bool_bindings = bool_bindings;
-    app.bool_binding_count = (uint16_t)(sizeof(bool_bindings) / sizeof(bool_bindings[0]));
-    /* Three slots, one table: hierarchy comes from layout rather than from a
-     * second typeface, because every extra font is real Flash on a 64 KB part. */
-    app.fonts.home_font = ui_font_body;
-    app.fonts.title_font = ui_font_body;
-    app.fonts.body_font = ui_font_body;
-    app.texts.return_text = "BACK";
-    app.texts.cancel_text = "CANCEL";
-    app.texts.confirm_text = "OK";
-    app.texts.on_text = "ON";
-    app.texts.off_text = "OFF";
-    app.texts.message_title = "NOTICE";
-
-    st = KK_UI_Init(&app);
+    st = KK_UI_Init(&s_ui_app);
     if (st != KK_UI_OK) {
         /* A rejected description means these tables disagree with the library.
          * Recorded rather than trapped: monitoring and the PC link both work with
