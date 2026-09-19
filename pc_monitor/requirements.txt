@@ -1,0 +1,31 @@
+# Runtime and test dependencies for the PC host tool.
+#
+#   python -m venv .venv
+#   .venv/Scripts/pip install -r requirements.txt
+#
+# Pinned to what this build was actually tested against (see docs/BUILD.md).
+# numpy is the only hard import outside the GUI; the tool degrades to a
+# console-mode demo without PySide6, but the plot needs it.
+
+# --- plotting / GUI ----------------------------------------------------------
+PySide6==6.11.2
+pyqtgraph==0.14.0
+numpy==2.5.3
+
+# --- link --------------------------------------------------------------------
+pyserial==3.5
+
+# --- export ------------------------------------------------------------------
+# openpyxl writes the .xlsx workbook and its embedded line chart; et_xmlfile is
+# its transitive dependency, listed so a fresh install is reproducible.
+openpyxl==3.1.5
+et_xmlfile==2.0.0
+
+# --- tests -------------------------------------------------------------------
+pytest==9.1.1
+
+# --- host C toolchain --------------------------------------------------------
+# Not needed to run the monitor. tools/run_host_tests.py and
+# tools/gen_protocol_vectors.py compile the firmware's own C on the host through
+# this wheel, which is how the algorithm tests run without a Keil licence.
+ziglang==0.16.0
