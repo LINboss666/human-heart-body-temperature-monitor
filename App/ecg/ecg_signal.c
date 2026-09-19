@@ -194,7 +194,10 @@ ecg_notch_t ecg_signal_get_notch(void)
  * removes wander without eating a QRS complex. */
 static int32_t remove_baseline(int32_t x)
 {
-    int32_t scaled = x << ECG_BASELINE_INPUT_Q;
+    /* x is a 12-bit ADC code widened through uint16_t, so it is non-negative and
+     * at most 65535; scaling by 2^Q as a multiplication keeps that defined the
+     * same way on both compilers instead of leaning on a signed shift. */
+    int32_t scaled = x * (int32_t)(1L << ECG_BASELINE_INPUT_Q);
 
     s_base1 += idiv_pow2(scaled - s_base1, ECG_BASELINE_SHIFT_K);
     s_base2 += idiv_pow2(s_base1 - s_base2, ECG_BASELINE_SHIFT_K);
@@ -216,12 +219,21 @@ static uint32_t integrate_qrs(int32_t bandlimited)
     uint16_t e;
     int64_t avg;
 
-    d = ((bandlimited << 1) + s_deriv_x1 - s_deriv_x2) >> ECG_DERIV_SHIFT;
+    /* Three-point derivative, written without shifting a signed value.
+     *
+     * `bandlimited` is the output of box_run(), which ends in clamp_i16(), so it
+     * and the two stored history samples are all within int16. Four of them
+     * cannot approach an int32 overflow, and doubling by multiplication is
+     * defined for negative operands where `x << 1` is not. The divide truncates
+     * toward zero exactly like every other stage in this file, for the reason
+     * given at the top of the module: ARMCC and the host compiler must agree.
+     */
+    d = idiv_pow2(bandlimited * 2 + s_deriv_x1 - s_deriv_x2, ECG_DERIV_SHIFT);
     s_deriv_x2 = s_deriv_x1;
     s_deriv_x1 = bandlimited;
 
     if (d < 0) {
-        d = -d;
+        d = -d;                     /* |d| <= 65536, so this can never hit INT32_MIN */
     }
     sq = ((int64_t)d * d) >> ECG_SQUARE_SHIFT;
     if (sq < 0) {
