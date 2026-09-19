@@ -31,6 +31,16 @@ void App_Loop(void);
 void App_SetRecording(bool on);
 bool App_Recording(void);
 
+/**
+ * Flip recording and the PC stream together, and nothing else.
+ *
+ * Called only from KK_UI's custom-page input callback, which is the one place
+ * that knows the ECG page currently has focus. An earlier version asked the
+ * application's own button queue and a mirrored page id instead; see
+ * docs/PHASE1_REVIEW_FIX_HANDOFF.md.
+ */
+void App_ToggleRecording(void);
+
 /** Seconds since the current recording started. */
 uint32_t App_SessionSeconds(void);
 

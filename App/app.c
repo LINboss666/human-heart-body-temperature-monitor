@@ -67,8 +67,7 @@ static void consume_blocks(uint32_t now_ms)
             if (ui_app_on_ecg_page()) {
                 ui_app_push_waveform(es.display, es.sample_index);
             }
-            protocol_service_push_sample(&es, &hr, NULL);
-            (void)temp_code;
+            protocol_service_push_sample(&es, &hr);
         }
 
         /* One refresh of the slower services per block, not per sample. */
@@ -84,6 +83,7 @@ static void consume_blocks(uint32_t now_ms)
             d->hr_state = (uint8_t)h->state;
             d->lead_state = (uint8_t)ecg_signal_lead_state();
             d->temp_centi = temp.centi_c;
+            d->temp_raw = temp.raw;
             d->temp_valid = temp.valid;
             d->temp_state = (uint8_t)temp.state;
             d->temp_uncalibrated = !temp.calibrated;
@@ -144,22 +144,15 @@ bool App_Recording(void)
     return s_recording;
 }
 
+void App_ToggleRecording(void)
+{
+    App_SetRecording(!s_recording);
+    protocol_service_set_streaming(s_recording);
+}
+
 uint32_t App_SessionSeconds(void)
 {
     return s_session_seconds;
-}
-
-static void handle_buttons(uint32_t now_ms)
-{
-    button_event_t ev;
-
-    while (buttons_take_event(&ev)) {
-        if (ev.id == BTN_OK && ev.kind == BTN_EVT_SHORT && ui_app_on_ecg_page()) {
-            App_SetRecording(!s_recording);
-            protocol_service_set_streaming(s_recording);
-        }
-    }
-    (void)now_ms;
 }
 
 void App_Loop(void)
@@ -171,7 +164,6 @@ void App_Loop(void)
     }
 
     buttons_scan(now_ms);
-    handle_buttons(now_ms);
     uart_link_rx_pump();
     consume_blocks(now_ms);
     rtc_service_poll(now_ms);

@@ -2,18 +2,19 @@
  * @file    buttons.h
  * @brief   Three-button input on PB12/PB13/PB14, non-blocking and debounced.
  *
- * Two views are exposed deliberately, because they have different consumers.
+ * This module answers one question — which keys are pressed right now, with
+ * contact bounce removed — and hands the answer to KK_UI, which owns everything
+ * above it: edge detection, auto-repeat, long-press, and which screen a key
+ * belongs to (KK_UI_KEY_DEBOUNCE_MS / KK_UI_KEY_REPEAT_DELAY_MS). Its documented
+ * porting contract is to be given key state from one execution context, which is
+ * what buttons_scan() + buttons_raw_mask() provide.
  *
- *   buttons_raw_mask()   the current pressed/not-pressed bitmask, with this
- *                        module's own 10 ms contact bounce removed. KK_UI does
- *                        its debounce, auto-repeat and long-press handling
- *                        internally (KK_UI_KEY_DEBOUNCE_MS /
- *                        KK_UI_KEY_REPEAT_DELAY_MS) and its documented porting
- *                        contract is to be handed key state from one execution
- *                        context, which is what this is.
- *
- *   buttons_take_event() PRESS / RELEASE / SHORT / LONG, debounced here, for the
- *                        application's own actions such as starting a recording.
+ * It used to also expose a second view, buttons_take_event(), delivering
+ * PRESS/RELEASE/SHORT/LONG for the application's own actions. That was removed:
+ * BTN_EVT_SHORT was declared and compared against by the only consumer but never
+ * emitted by any code path, so the action it gated could never fire; and routing
+ * a key to "the screen that should act on it" duplicates KK_UI's own focus
+ * decision, less accurately. Key actions now live in the KK_UI page callbacks.
  *
  * No HAL_Delay anywhere: a blocking debounce would stall the sample consumer.
  */
@@ -34,18 +35,6 @@ typedef enum {
     BTN_COUNT
 } button_id_t;
 
-typedef enum {
-    BTN_EVT_PRESS = 0,
-    BTN_EVT_RELEASE,
-    BTN_EVT_SHORT,     /* emitted on release, before a long press was reached */
-    BTN_EVT_LONG       /* emitted once, while still held */
-} button_event_kind_t;
-
-typedef struct {
-    button_id_t       id;
-    button_event_kind_t kind;
-} button_event_t;
-
 /** Call after MX_GPIO_Init; configures nothing, only resets state. */
 void buttons_init(void);
 
@@ -55,16 +44,11 @@ void buttons_init(void);
  */
 void buttons_scan(uint32_t now_ms);
 
-/** Pop one queued event, oldest first. */
-bool buttons_take_event(button_event_t *out);
-
 /** Bitmask in KK_UI_KEY_UP / KK_UI_KEY_DOWN / KK_UI_KEY_OK order, raw. */
 uint8_t buttons_raw_mask(void);
 
 /** True while the named button is electrically read as pressed. */
 bool buttons_is_down(button_id_t id);
-
-void buttons_set_long_press_ms(uint16_t ms);
 
 #ifdef __cplusplus
 }

@@ -37,7 +37,16 @@ void ui_app_update(uint32_t now_ms);
 /** Push one processed sample into the scrolling trace. Never blocks. */
 void ui_app_push_waveform(int16_t display_value, uint32_t sample_index);
 
-/** True once the ECG page is on screen, so the app can prioritise its redraw. */
+/**
+ * True while the ECG page is on screen, so the sample loop can skip building a
+ * trace nobody is looking at.
+ *
+ * This is a convenience mirror, cleared by KK_UI_CustomOnLeave, and KK_UI defers
+ * that callback until the slide animation finishes -- so it can stay true for one
+ * transition. That is harmless for a redraw decision. It is deliberately NOT what
+ * the KEY_OK recording action tests: that runs inside KK_UI's own dispatch, where
+ * focus is known exactly rather than within a frame or two.
+ */
 bool ui_app_on_ecg_page(void);
 
 /** Ask the UI to move to the ECG page (KEY_OK from HOME, or a host command). */
@@ -45,9 +54,6 @@ void ui_app_goto_ecg(void);
 
 /** Display presence, for the STATUS page and HELLO capabilities. */
 bool ui_app_display_present(void);
-
-/** The settings-page "PC stream" switch, read by App_Loop each iteration. */
-bool ui_app_stream_switch(void);
 
 #ifdef __cplusplus
 }

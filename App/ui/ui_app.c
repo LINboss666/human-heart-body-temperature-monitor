@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "app.h"
 #include "app_config.h"
 #include "buttons.h"
 #include "diagnostics.h"
@@ -27,6 +28,7 @@
 #include "kk_ui.h"
 #include "oled_bus.h"
 #include "protocol.h"
+#include "protocol_service.h"
 #include "rtc_calendar.h"
 #include "rtc_service.h"
 #include "temperature.h"
@@ -39,6 +41,7 @@
  * neighbour.
  */
 enum {
+    PAGE_NONE = 0,        /* KK_UI page ids start at 1, so 0 means "not on a page" */
     PAGE_MAIN = 1,
     PAGE_ECG,
     PAGE_TEMP,
@@ -360,16 +363,27 @@ void KK_UI_CustomOnEnter(KK_UI_PageId page)
 
 void KK_UI_CustomOnLeave(KK_UI_PageId page)
 {
+    /* KK_UI only calls this when the page being left is a CUSTOM one, which for
+     * this application means exactly PAGE_ECG. Without it s_current_page kept
+     * claiming the ECG page after navigation to any menu or info screen, so
+     * ui_app_on_ecg_page() stayed true forever and the waveform gate stayed open.
+     */
     (void)page;
+    s_current_page = PAGE_NONE;
 }
 
 void KK_UI_CustomOnInput(KK_UI_PageId page, KK_UI_InputEvent event)
 {
-    (void)page;
-    (void)event;
-    /* The ECG page holds no editable state. KEY_OK start/stop is taken from the
-     * button event stream in the application instead, so one key cannot mean two
-     * different things depending on which template drew the screen. */
+    if (page != PAGE_ECG) {
+        return;
+    }
+    /* KK_UI_DispatchInput() only routes input here while a CUSTOM page has focus,
+     * so this is the authoritative place for the ECG page's own key action. Doing
+     * it here rather than in App_Loop against a mirrored page id is what makes
+     * "OK means start/stop only on this screen" true instead of nearly true. */
+    if (event.action == KK_UI_INPUT_OK && event.source == KK_UI_INPUT_PRESS) {
+        App_ToggleRecording();
+    }
 }
 
 bool KK_UI_CustomOnTick(KK_UI_PageId page, uint32_t now_ms)
@@ -566,16 +580,16 @@ static void apply_event(KK_UI_EventId id)
         (void)KK_UI_ShowToast("READ FROM RTC", 0U);
         break;
     case EVT_STREAM_TOGGLE:
-        /* The bound switch is the source of truth; App_Loop polls v_stream. */
+        /* By the time this event is polled, KK_UI has already written the new
+         * value through the binding, so v_stream is the request, not the old
+         * state. protocol_service owns streaming; this switch and the PC's
+         * START/STOP commands are two front doors to the one boolean. */
+        protocol_service_set_streaming(v_stream);
+        (void)KK_UI_ShowToast(v_stream ? "STREAMING" : "STREAM OFF", 0U);
         break;
     default:
         break;
     }
-}
-
-bool ui_app_stream_switch(void)
-{
-    return v_stream;
 }
 
 void ui_app_update(uint32_t now_ms)
@@ -595,6 +609,13 @@ void ui_app_update(uint32_t now_ms)
     }
     while (KK_UI_PollError(&ei)) {
         diagnostics_note_error((uint8_t)ei.code);
+    }
+
+    /* The switch shows the protocol's state, not what was last clicked here, so a
+     * PC START_STREAM or the ECG page's KEY_OK is reflected rather than fought. */
+    if (v_stream != protocol_service_streaming()) {
+        v_stream = protocol_service_streaming();
+        KK_UI_Invalidate();
     }
 
     if ((uint32_t)(now_ms - last_text_ms) >= 500U) {
