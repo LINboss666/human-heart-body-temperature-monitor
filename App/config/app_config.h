@@ -135,4 +135,30 @@
 /** TEMP_STATUS packet period, milliseconds. */
 #define TEMP_STATUS_PERIOD_MS           500U
 
+/* -------------------------------------------------- temporary OLED bring-up test
+ *
+ * A debug-branch switch, not a feature. With it on, the boot path skips KK_UI
+ * completely and renders one static image on the panel, while everything the test
+ * was able to observe is left in the non-static `g_oled_test` for a debugger to
+ * read. With it off the firmware is the frozen Phase 1 behaviour, unchanged.
+ *
+ * It exists because "OLED_Init returned OK" and "the panel is lit" are different
+ * claims, and only hardware can compare them.
+ */
+#define OLED_BRINGUP_TEST_OFF           0U
+#define OLED_BRINGUP_TEST_ON            1U
+
+#ifndef OLED_BRINGUP_TEST
+#define OLED_BRINGUP_TEST               OLED_BRINGUP_TEST_ON
+#endif
+
+/** Which image to leave on the panel. Rendered once, never cycled. */
+#define OLED_BRINGUP_PATTERN_FULL_WHITE 1U
+#define OLED_BRINGUP_PATTERN_CHECKER    2U
+#define OLED_BRINGUP_PATTERN_BORDER     3U
+
+#ifndef OLED_BRINGUP_PATTERN
+#define OLED_BRINGUP_PATTERN            OLED_BRINGUP_PATTERN_FULL_WHITE
+#endif
+
 #endif /* APP_CONFIG_H */

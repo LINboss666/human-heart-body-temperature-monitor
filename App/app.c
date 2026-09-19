@@ -6,6 +6,7 @@
 #include "app_config.h"
 #include "buttons/buttons.h"
 #include "diagnostics/diagnostics.h"
+#include "diagnostics/oled_bringup_test.h"
 #include "display/oled_bus.h"
 #include "ecg/ecg_hr.h"
 #include "ecg/ecg_signal.h"
@@ -64,9 +65,11 @@ static void consume_blocks(uint32_t now_ms)
 
             temperature_feed(temp_code);
 
+#if !OLED_BRINGUP_TEST
             if (ui_app_on_ecg_page()) {
                 ui_app_push_waveform(es.display, es.sample_index);
             }
+#endif
             protocol_service_push_sample(&es, &hr);
         }
 
@@ -104,9 +107,17 @@ void App_Init(void)
     diagnostics_init();
 
     /* Controller profile and address probe must happen before OLED_Init, which
-     * reads both. A panel that does not answer is recorded, not fatal. */
+     * reads both. A panel that does not answer is recorded, not fatal.
+     *
+     * In bring-up-test mode the test owns all of that, including the profile, and
+     * KK_UI is never initialised - a page table would only repaint over the one
+     * image whose result is being read. */
+#if OLED_BRINGUP_TEST
+    oled_bringup_test_run();
+#else
     oled_bus_apply_profile((oled_controller_t)OLED_CONTROLLER_SELECTED);
     (void)oled_bus_scan();
+#endif
 
     buttons_init();
     ecg_signal_reset();
@@ -124,7 +135,9 @@ void App_Init(void)
         diagnostics_note_error(DIAG_ERR_RTC_SYNC);
     }
     protocol_service_init();
+#if !OLED_BRINGUP_TEST
     ui_app_init();
+#endif
 
     if (!acquisition_start()) {
         /* Calibration or DMA arming failed. Everything that does not need the ADC
@@ -179,7 +192,9 @@ void App_Loop(void)
     consume_blocks(now_ms);
     rtc_service_poll(now_ms);
     protocol_service_poll(now_ms);
+#if !OLED_BRINGUP_TEST
     ui_app_update(now_ms);
+#endif
 
     if (s_recording) {
         s_session_seconds = (uint32_t)(now_ms - s_recording_start_ms) / 1000U;

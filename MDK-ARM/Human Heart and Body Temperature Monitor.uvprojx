@@ -880,6 +880,11 @@
               <FilePath>../App/diagnostics/diagnostics.c</FilePath>
             </File>
             <File>
+              <FileName>oled_bringup_test.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../App/diagnostics/oled_bringup_test.c</FilePath>
+            </File>
+            <File>
               <FileName>oled_bus.c</FileName>
               <FileType>1</FileType>
               <FilePath>../App/display/oled_bus.c</FilePath>
