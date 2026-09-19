@@ -85,6 +85,10 @@ packets while pressing.
 debugger and inspect `oled_bus_address_8bit`, `oled_bus_scanned`, `oled_present`.
 **Pass.** `oled_bus_scanned == 1` and `oled_bus_address_8bit` is `0x78` (0x3C<<1) or `0x7A`
 (0x3D<<1).
+**Measured 2026-09-19 — PASS on the first board.** With the module at ~3.3 V and PB6/PB7
+idling at ~3.3 V, the debugger showed `oled_bus_scanned = 1` and `oled_bus_address_8bit =
+0x78`, i.e. 7-bit `0x3C`. The user identified the part on the module as **SSD1306**, so the
+profile and the address are now both observed rather than assumed. `0x3D` was never needed.
 **Software fallback.** The `HELLO` and `STATUS` packets carry `oled_address` and
 `oled_present`, so the address is readable over the serial link with no debugger at all.
 **What an address finding does *not* tell you.** Nothing about the controller, its column
@@ -104,6 +108,22 @@ product page, and only then pick a profile.
 (`SSD1306`, `SH1106` or `CH1116`) as a compiler define, rebuild, flash, reset.
 **Pass.** The MAIN menu is legible, centred, not shifted horizontally, not mirrored, not
 vertically smeared across page boundaries.
+**Measured 2026-09-19 — pixels PASS, profile chosen, menu still not seen.** A temporary
+debug branch bypassed KK_UI and drove the driver directly: `OLED_Init()` returned OK on the
+SSD1306 profile and a full-frame `OLED_Fill()` + `OLED_Update()` lit **every pixel** of the
+128×64 glass. So the bus, the init block including `0x8D,0x14`, page addressing and `0xAF`
+are all confirmed on hardware, and the "completely dark but acknowledged" row in the table
+below is ruled out for this module.
+**What that does not settle.** An all-white frame cannot reveal a column offset or a COM
+layout — every mapping shows white. The pattern is still needed: the temporary
+`debug/oled-bringup` branch has `OLED_BRINGUP_PATTERN_CHECKER` and `_BORDER` for exactly
+this, and reading the edges of one of those is the measurement.
+**And why the menu was black anyway.** The frozen firmware showed nothing at all despite the
+ACK, because `ui_app_init()` handed `KK_UI_Init()` the address of a stack-local descriptor
+that KK_UI keeps using on every frame. See
+[KK_UI_NOTES.md](KK_UI_NOTES.md#the-descriptor-lifetime-contract-the-bug-that-made-a-real-panel-stay-black);
+the fix is on `fix/ui-app-lifetime`, and **this stage's pass criterion is still open** until
+that build is flashed and the menu is seen.
 **Symptom → profile change.**
 | Symptom | Meaning |
 | --- | --- |

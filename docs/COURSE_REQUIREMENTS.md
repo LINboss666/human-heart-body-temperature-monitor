@@ -65,11 +65,12 @@ physical display is marked as satisfied.
 
 | Requirement | Implementation | Status |
 | --- | --- | --- |
-| OLED human interface | KK_UI + KK_OLED over I2C1 at 400 kHz, 128×64 | `SOFTWARE IMPLEMENTED` · `HARDWARE VERIFICATION PENDING` (Stages D/E) |
-| Controller identity | Unknown. Three compile-time profiles (SSD1306 / SH1106 / CH1116) with different charge-pump bytes and column offsets; all marked UNVERIFIED | Deliberately unresolved, not guessed |
-| Address | `0x3C` / `0x3D` probed at boot; the answer is reported over the link and on the STATUS page. An ACK proves presence only, never the controller type | `SOFTWARE IMPLEMENTED` |
-| Missing display must not brick the device | `OLED_Init()` failure sets `oled_present=false`; acquisition, RTC and UART all continue | `SOFTWARE IMPLEMENTED` · `HARDWARE VERIFICATION PENDING` (Stage E) |
-| Pages | MAIN menu, ECG (custom waveform), BODY TEMP, STATUS, DATE & TIME, SETTINGS, ABOUT | `SOFTWARE IMPLEMENTED` |
+| OLED human interface | KK_UI + KK_OLED over I2C1 at 400 kHz, 128×64 | `SOFTWARE IMPLEMENTED` · bus, controller, init and pixel output `HARDWARE VERIFIED` 2026-09-19 (Stages D/E) · the rendered menu still `HARDWARE VERIFICATION PENDING` |
+| Controller identity | **SSD1306**, identified on the module and consistent with the observed behaviour: its init block was accepted and a full-frame write lit every pixel | `HARDWARE VERIFIED` 2026-09-19. SH1106 / CH1116 profiles remain in the tree for a different module |
+| Address | `0x3C` / `0x3D` probed at boot; the answer is reported over the link and on the STATUS page. An ACK proves presence only, never the controller type | `SOFTWARE IMPLEMENTED` · this module answers at **7-bit `0x3C`** (HAL `0x78`) — `HARDWARE VERIFIED` 2026-09-19 |
+| Column offset and COM layout | SSD1306 profile uses offset 0 and `0xC8`/`0xDA,0x12` | Still `HARDWARE VERIFICATION PENDING`: an all-white frame cannot reveal either, a pattern can |
+| Missing display must not brick the device | `OLED_Init()` failure sets `oled_present=false`; acquisition, RTC and UART all continue | `SOFTWARE IMPLEMENTED` · `HARDWARE VERIFICATION PENDING` (a panel is fitted now, so the absent-panel path is what is untested) |
+| Pages | MAIN menu, ECG (custom waveform), BODY TEMP, STATUS, DATE & TIME, SETTINGS, ABOUT | `SOFTWARE IMPLEMENTED` · `HOST VERIFIED` that the real tables render a non-empty MAIN menu frame (`tests/host/test_ui_frame.c`) |
 | Waveform on 128 px | min/max decimation, 8 samples per column, vertical segments so a narrow QRS cannot be averaged away | `SOFTWARE IMPLEMENTED` · `HARDWARE VERIFICATION PENDING` |
 | UI must not block sampling | Display flush is partial-area and runs in the main loop; the ADC chain is hardware-driven with 128 ms of buffering | `SOFTWARE IMPLEMENTED` · `HARDWARE VERIFICATION PENDING` (Stage M) |
 | Font licence | ASCII-only, authored in-repo by `tools/gen_oled_fonts.py`; no third-party typeface and no CJK table | `HOST VERIFIED` against the vendor decoder, 78 assertions |
@@ -95,15 +96,17 @@ physical display is marked as satisfied.
 | No large Chinese font table | ASCII-only, 1113 bytes |
 | No floating point in the signal chain | All filter and detector arithmetic is integer |
 | Flash must not be faked by changing the part | Device remains `STM32F103C8`, ROM `0x08000000` size `0x10000`, RAM `0x20000000` size `0x5000` — unchanged from Phase 0 |
-| Measured footprint | `Code=38392 RO=3096 RW=380 ZI=7524` → 41868 B flash (**63.9 %** of 64 KB), 7904 B RAM (**38.6 %** of 20 KB) |
+| Measured footprint | `Code=38244 RO=3228 RW=380 ZI=7524` → 41852 B flash (**63.9 %** of 64 KB), 7904 B RAM (**38.6 %** of 20 KB) |
 | Compiler warnings | `0 Warning(s)` at Keil warning level 2, no `--diag_suppress`, no blanket warning suppression |
 
 ## Not satisfied, stated plainly
 
 1. **No measurement from a human body exists.** Every heart-rate figure came from synthetic
    beats. The analog front-ends are not built.
-2. **No pixels have ever been seen.** The panel, its controller, its address and its pull-ups
-   are all unconfirmed; the UI is compile-verified only.
+2. **No page of the interface has ever been seen on glass.** Pixels have — a full-frame write
+   lit the whole 128×64 module on 2026-09-19 — but the rendered menu, its centring and its
+   column mapping are still unverified on hardware. The interface is `HOST VERIFIED` against
+   a shadow panel and `BUILD VERIFIED` for the target.
 3. **No LSE start, no VBAT retention, no railed-input behaviour has been observed** on real
    silicon.
 4. **Lead-off detection as the course describes it is not implemented**, because the required

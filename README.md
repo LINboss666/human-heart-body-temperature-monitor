@@ -2,12 +2,15 @@
 
 **English** · [中文](README.zh-CN.md)
 
-> **Phase 1 — full application software, built and host-tested, never run on hardware.**
+> **Phase 1 — full application software, built, host-tested, and now running on a real
+> board — but with no measurement from it.**
 >
 > This is a student course project, **not a medical device**. It performs no diagnosis
 > and its output must not be used for any clinical decision. No ECG or temperature
-> measurement from a human body has ever been taken with this firmware, and no display
-> has ever shown a pixel from it. Read
+> measurement from a human body has ever been taken with this firmware. As of
+> 2026-09-19 the OLED link is verified on hardware — an SSD1306 module at 7-bit `0x3C`
+> lighting every pixel when driven directly — while no page of the interface has been
+> seen on glass yet. Read
 > [docs/COURSE_REQUIREMENTS.md](docs/COURSE_REQUIREMENTS.md) for which claims rest on
 > host tests and which are pending hardware.
 
@@ -16,9 +19,9 @@
 | MCU | STM32F103C8T6 — Cortex-M3, 64 KB flash, 20 KB SRAM |
 | Toolchain | Keil MDK-ARM (AC5 / ARMCC V5.06), STM32CubeMX 6.17.0, FW_F1 V1.8.7 |
 | Firmware build | `0 Error(s), 0 Warning(s)` |
-| Footprint | `Code=38392 RO=3096 RW=380 ZI=7524` → **63.9 % flash, 38.6 % RAM** |
-| Host tests | 6 C binaries, 1050 assertions · 256 pytest cases, 0 failures |
-| Hardware verified | **None.** See [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) |
+| Footprint | `Code=38244 RO=3228 RW=380 ZI=7524` → **63.9 % flash, 38.6 % RAM** |
+| Host tests | 7 C binaries, 1074 assertions · 256 pytest cases, 0 failures |
+| Hardware verified | **OLED only, partly.** I2C1 on PB6/PB7, an SSD1306 module ACKing at 7-bit `0x3C`, its init sequence, and a full-frame write lighting every pixel — all on 2026-09-19. Nothing else: see [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) |
 | Phase 0 baseline | tag `v0.1-baseline`, commit `eb8a795` |
 
 ## What it does
@@ -167,10 +170,11 @@ marked, so they cannot be exported as a measurement.
 | Done and demonstrated | Not claimed |
 | --- | --- |
 | Compiles clean with no warning suppression | Any measurement from a human body |
-| 1050 host C assertions on the shipping integer code | That the RTC crystal starts, or VBAT retention |
-| 256 Python cases; 21 frames replayed from the C encoder | That any pixel ever appeared on a panel |
+| 1074 host C assertions on the shipping integer code | That the RTC crystal starts, or VBAT retention |
+| 256 Python cases; 21 frames replayed from the C encoder | That the interface ever rendered a page on glass |
 | Calendar round-trip 1970→2099, hour by hour | ±2 bpm heart-rate accuracy |
 | Font decodes under the vendor's own decoder | That the front-end gain or bias is right |
+| OLED bus, `0x3C` ACK, SSD1306 init, all-pixel write — on hardware | That the panel's column mapping is right |
 | Flash/RAM fit with 23 KB / 12 KB spare | That 1 kHz holds with UI and UART loaded |
 
 Everything pending is itemised with a procedure in
