@@ -14,7 +14,7 @@
 | MCU | STM32F103C8T6 —— Cortex-M3，64 KB Flash，20 KB SRAM |
 | 工具链 | Keil MDK-ARM（AC5 / ARMCC V5.06）、STM32CubeMX 6.17.0、FW_F1 V1.8.7 |
 | 固件编译结果 | `0 Error(s), 0 Warning(s)` |
-| 占用 | `Code=38364 RO=3096 RW=380 ZI=7524` → **Flash 63.8 %，RAM 38.6 %** |
+| 占用 | `Code=38392 RO=3096 RW=380 ZI=7524` → **Flash 63.9 %，RAM 38.6 %** |
 | 宿主测试 | 6 个 C 可执行文件、1050 条断言；Python 用例 256 个，全部 0 失败 |
 | 已在硬件上验证 | **一项都没有。** 见 [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) |
 | Phase 0 基线 | tag `v0.1-baseline`，commit `eb8a795` |

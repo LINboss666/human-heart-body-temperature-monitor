@@ -13,7 +13,7 @@ work, no general cleanup, no redesign of anything that already worked.
 | Frozen baseline | tag `v0.1-baseline` → `eb8a795` (untouched) |
 | Files changed | 19 — 11 of code and tests (8 under `App/`, 3 under `tests/host/`) plus 8 documentation files |
 | Firmware build | `0 Error(s), 0 Warning(s)` (full `UV4 -j0 -r` rebuild, ARMCC V5.06 u5, `-O3`, warning level 2, nothing suppressed) |
-| Footprint | `Code=38364 RO-data=3096 RW-data=380 ZI-data=7524` → flash 41840/65536 = **63.8 %**, RAM 7904/20480 = **38.6 %** |
+| Footprint | `Code=38392 RO-data=3096 RW-data=380 ZI-data=7524` → flash 41868/65536 = **63.9 %**, RAM 7904/20480 = **38.6 %** |
 | Host C tests | 6 binaries, **1050 assertions, 0 failures** (was 1004) |
 | Python tests | **256 cases, 0 failures**, incl. headless GUI |
 | Golden vectors | regenerated with **no diff** → wire format unchanged → `PROTOCOL_VERSION` stays **2** |
@@ -75,6 +75,31 @@ counter cannot resurrect a clock either.
 **No hardware claim.** Whether LSE starts, whether VBAT holds the counter, and whether this
 wait ever actually completes on this board are all unmeasured. Stage O of
 [`HARDWARE_TEST_PLAN.md`](HARDWARE_TEST_PLAN.md) is written for exactly that.
+
+**Cold-start follow-up, added after the GPT review of this branch.** The review found that
+the wait above can still never succeed on the *first* backup-domain power-up, and it is
+right: `__HAL_RCC_RTC_CONFIG()` is `MODIFY_REG(RCC->BDCR, RCC_BDCR_RTCSEL, ...)`
+(`stm32f1xx_hal_rcc.h:985`), so `HAL_RCCEx_PeriphCLKConfig()` selects a source without
+enabling the peripheral. `RTCEN` is raised by `__HAL_RCC_RTC_ENABLE()`
+(`stm32f1xx_hal_rcc.h:999`, a bit-band write to `RCC_BDCR_RTCEN_BB`), which the generated
+code calls only from `HAL_RTC_MspInit()` — after `MX_RTC_Init()`, i.e. after this reading
+would have had to happen. On a warm boot the bit is already set from the previous session
+because it lives in the backup domain, which is why the defect is invisible until a genuine
+cold start; there it costs a 1 s timeout and a `DIAG_ERR_RTC_SYNC` with a healthy crystal.
+`rtc_service.c` previously asserted the opposite in its header comment, and that comment is
+what the review caught.
+
+The fix is sequencing only, in `rtc_clock_prepare()`: after `bkp_unlock()` (DBP is what
+makes the BDCR write land at all), read `__HAL_RCC_GET_RTC_SOURCE()` — the HAL documents
+`__HAL_RCC_RTC_ENABLE()` as usable "only after the RTC clock source was selected", so a zero
+`RTCSEL` returns false and **no RTC register is touched**, not even the `RSF` clear — then
+`__HAL_RCC_RTC_ENABLE()`. The write is idempotent, so the warm path is unaffected. `RTCSEL`
+is not modified, the backup domain is not reset, and `s_counter_valid` / `s_sync_failed` /
+the anchor semantics are unchanged: `s_counter_valid = rtc_clock_prepare() && rtc_sync_before_read()`.
+No host test was added for this: the decision is two register bits behind a HAL macro, and
+mocking `RCC` to assert `x != 0` would be a test that cannot fail. It is `STATIC REVIEWED`
+against the macros above and `BUILD VERIFIED`, and Stage O (d) now tests the cold start on
+silicon.
 
 ## 2. RTC backup-register anchor: torn writes and power loss
 
@@ -188,7 +213,7 @@ Every number below was produced by the commands shown, on this branch, after the
 ```
 # 1. firmware, from-scratch rebuild
 MDK-ARM> /c/Keil_v5/UV4/UV4.exe -j0 -r "Human Heart and Body Temperature Monitor.uvprojx" -o final_rebuild.log
-   → 0 Error(s), 0 Warning(s)   Code=38364 RO-data=3096 RW-data=380 ZI-data=7524
+   → 0 Error(s), 0 Warning(s)   Code=38392 RO-data=3096 RW-data=380 ZI-data=7524
 
 # 2. host C algorithms (1050 assertions)
 pc_monitor/.venv/Scripts/python.exe tools/run_host_tests.py
@@ -209,8 +234,14 @@ pc_monitor/.venv/Scripts/python.exe tools/gen_protocol_vectors.py
 file is in the diff. The only change touching the generated side of the project remains the
 pre-existing `USER CODE BEGIN RTC_Init 0` / `RTC_Init 2` call sites.
 
-## 5. Where the review prompt was wrong or incomplete
+## 5. Where the review prompts were wrong, incomplete, or right
 
+* **The GPT review of this branch was right about the cold start**, and it was a real defect
+  in what this pass had just written: the RSF wait was correctly bounded but placed before
+  anything had clocked the RTC interface. §1 carries the follow-up. Its instruction to
+  *verify the RTC clock source is selected* before enabling was the part worth keeping: the
+  no-source case is not a timeout to wait out, so it now returns early without touching an
+  RTC register at all.
 * *"Verify exactly how many backup registers this device exposes"* was worth doing: the
   `IS_RTC_BKP` macro *looks* like it allows DR42, and on this part it does not. Five
   registers of ten is comfortably inside the limit, and DR6–DR10 remain free.
@@ -246,10 +277,12 @@ Still unknown after this pass, and not claimable:
    no ADC input range, no human-body measurement, no real 1 kHz sustained-with-UI timing.
    This pass made the RTC's failure modes honest; it did not make any of them observed.
 2. **`rtc_service.c` has never executed.** Its ordering is `STATIC REVIEWED` against
-   `HAL_RTC_Init()`, `HAL_RTC_WaitForSynchro()`, `RTC_ReadTimeCounter()` and
-   `HAL_RCCEx_PeriphCLKConfig()` — including the finding that a normal LSE boot does *not*
+   `HAL_RTC_Init()`, `HAL_RTC_WaitForSynchro()`, `RTC_ReadTimeCounter()`,
+   `__HAL_RCC_RTC_CONFIG()`, `__HAL_RCC_RTC_ENABLE()` and
+   `HAL_RCCEx_PeriphCLKConfig()` — including the findings that a normal LSE boot does *not*
    reset the backup domain, since `HAL_RCCEx_PeriphCLKConfig` only triggers `BDRST` when the
-   clock source actually changes. Stage A/B/O decide it.
+   clock source actually changes, and that `RTCEN` is not raised anywhere before
+   `HAL_RTC_MspInit()`. Stage A/B/O decide it; Stage O (d) is the cold start this pass fixed.
 3. **Temperature is uncalibrated by design** and the open/short thresholds are guesses with
    a `UNVERIFIED` marker. The probe response times in §3 are correct for whatever thresholds
    Stage J ends up with.

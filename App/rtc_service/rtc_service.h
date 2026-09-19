@@ -26,9 +26,15 @@
  * The arithmetic itself is rtc_anchor_restore() in rtc_calendar.c, which is
  * host-tested including the counter-wrap and implausible-delta cases.
  *
- * Two things have to hold for that reading to mean anything, and they are
+ * Three things have to hold for that reading to mean anything, and they are
  * separate:
  *
+ *   - The RTC interface must be clocked at all. RCC_BDCR RTCEN is what does that,
+ *     and HAL_RCCEx_PeriphCLKConfig() only writes RTCSEL; the HAL sets RTCEN later,
+ *     in HAL_RTC_MspInit(). This pre-init path runs before either, so after a real
+ *     backup-domain reset nothing would respond: rtc_clock_prepare() enables the
+ *     bit (idempotent when it is already set) and refuses to touch RTC registers
+ *     when no clock source is selected.
  *   - The APB interface that presents CNTH/CNTL must have re-synchronised with
  *     the RTC core since this reset (the RSF flag). Those registers are
  *     synchronised copies, so a first read after a reset can return the value
@@ -89,11 +95,12 @@ bool rtc_service_set_datetime(const rtc_datetime_t *dt);
 bool rtc_service_set_timestamp(uint32_t epoch);
 
 /**
- * True if the APB register-synchronisation wait did not complete before the
- * timeout this boot, so CNTH/CNTL were never read and no elapsed interval could
- * be established. Sticky, and queryable only after App_Init(): raise it there
- * rather than from restore(), because diagnostics_init() runs after MX_RTC_Init()
- * and would otherwise erase a code noted during the RTC init.
+ * True if this boot could not establish a trustworthy RTC counter reading: either
+ * no RTC clock source was selected, or the APB register-synchronisation wait did
+ * not complete before its timeout. In both cases CNTH/CNTL were never read, so no
+ * elapsed interval exists. Sticky, and queryable only after App_Init(): raise it
+ * there rather than from restore(), because diagnostics_init() runs after
+ * MX_RTC_Init() and would otherwise erase a code noted during the RTC init.
  */
 bool rtc_service_sync_failed(void);
 

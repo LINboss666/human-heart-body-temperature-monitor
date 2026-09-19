@@ -249,13 +249,21 @@ and why this stage is still on the list.
 
 **When.** Run this immediately after Stage B; it needs no analog hardware, only a booting
 board and either a debugger or the Stage L serial link.
-**What is being separated.** Three different things can be wrong, and they look the same
-from the screen:
-1. the RTC core counter in the backup domain is not running (no LSE, or no VBAT);
-2. the APB-visible `CNTH`/`CNTL` copies were not re-acquired after reset (`RSF` never set);
-3. the backup-register anchor is absent, torn, or disagrees with the counter.
-The firmware distinguishes them deliberately: only case 2 sets `rtc_service_sync_failed()`,
-and all three end in `rtc_service_is_valid() == false`, i.e. the clock reports `UNSET`.
+**What is being separated.** These are distinct conditions that all look the same from the
+screen:
+- the RTC core is not counting (no LSE, or no VBAT);
+- the RTC interface is not clocked: `RCC_BDCR` `RTCEN`. `HAL_RCCEx_PeriphCLKConfig()`
+  writes only `RTCSEL`, and the HAL sets `RTCEN` later in `HAL_RTC_MspInit()`, so this is
+  what a genuine cold start looks like before either has run — `rtc_clock_prepare()` does it
+  on the pre-init path;
+- no RTC clock source is selected at all (`RTCSEL == 0`), which the firmware treats as
+  "do not touch an RTC register";
+- `RSF` never arrived, so `CNTH`/`CNTL` are still the copies latched before this reset. A
+  dead crystal and an unclocked interface are indistinguishable here, and separate only
+  against `RCC_BDCR` `LSERDY`;
+- the backup-register anchor is absent, torn, or disagrees with the counter.
+The first four leave `s_counter_valid` clear, and the last one `s_anchor_available` clear;
+every path ends at `rtc_service_is_valid() == false`, i.e. the clock reports `UNSET`.
 **Action.** Set a known time, let it run 60 s, then (a) press NRST, (b) power off for 10 s
 with VBAT applied, (c) power off with VBAT removed. Read the time after each.
 **Pass.**
@@ -264,6 +272,13 @@ with VBAT applied, (c) power off with VBAT removed. Read the time after each.
 - (b) same, and that is the first real evidence that VBAT retention works on this board.
 - (c) the clock reports `UNSET`, not a plausible wrong time. With the backup domain lost,
   the anchor is gone; guessing would be worse than admitting it.
+- (d) **cold start**, i.e. after a deliberate backup-domain reset (`RCC_BDCR` `BDRST` from a
+  debugger, or a board that has never had VBAT): the boot must complete with
+  `s_sync_failed == 0`, no `DIAG_ERR_RTC_SYNC`, `RCC_BDCR` showing `RTCEN` and `RSF` both
+  set, and a time the user then sets by hand must stick through (a). Before
+  `rtc_clock_prepare()` this case reported a 1 s synchronisation timeout with a perfectly
+  healthy crystal, because the bit that clocks the RTC interface is not written until
+  `HAL_RTC_MspInit()`.
 **Direct observation.** Halt and inspect `s_sync_failed`, `s_counter_valid`,
 `s_anchor_available`, `s_saved_anchor` and `s_counter_at_boot` in `rtc_service.c`. Over
 UART the STATUS packet shows only the consequences: the `rtc_valid` flag stays clear and
@@ -272,8 +287,10 @@ counter and keeps the reason (`DIAG_ERR_RTC_SYNC`, code 201) in `last_error_code
 screen renders in this build. Read the code with a debugger.
 **Diagnosis.**
 - `s_sync_failed == 1` after a normal reset → RSF never arrived, so `RTCCLK` is not
-  running: no LSE, or the backup-domain clock mux is not LSE. Cross-check `RCC->BDCR`
-  `RSF`/`RTCRDY` and Stage B. Nothing was read from the counter in this state, by design.
+  running. Read `RCC->BDCR` first: `RTCEN` should already be 1 by the time this wait starts
+  (a 0 there means the enable did not land, i.e. `DBP` was blocked), and `LSERDY` says
+  whether the crystal itself is alive. Nothing was read from the counter in this state, by
+  design.
 - Anchor present but time jumps backwards → `RTC_EPOCH_MAX_SECOND` rejection did not fire,
   which would mean the counter did not actually reset; re-check with a debugger read of
   `RCC->BDCR` `BDRST` history and of `RTC->CNTH/CNTL`.

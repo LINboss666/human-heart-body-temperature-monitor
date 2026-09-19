@@ -53,7 +53,7 @@ physical display is marked as satisfied.
 
 | Requirement | Implementation | Status |
 | --- | --- | --- |
-| RTC date/time | `rtc_service` over the LSE-driven RTC, epoch seconds internally. Three layers, kept distinct: the backup-domain seconds counter, the APB-visible `CNTH`/`CNTL` copies (re-acquired through RSF with a bounded timeout before any reading is trusted), and the software epoch anchored to a counter reading | `SOFTWARE IMPLEMENTED` |
+| RTC date/time | `rtc_service` over the LSE-driven RTC, epoch seconds internally. Layers, kept distinct: the backup-domain seconds counter, the RTC interface clock (`RCC_BDCR` `RTCEN`, which the HAL only raises in `HAL_RTC_MspInit()` and this pre-init path raises itself), the APB-visible `CNTH`/`CNTL` copies (re-acquired through `RSF` with a bounded timeout before any reading is trusted), and the software epoch anchored to a counter reading | `SOFTWARE IMPLEMENTED` |
 | Must not reset on every power-up | CubeMX unconditionally writes 2000-01-01 in `MX_RTC_Init`; the service writes an anchor (epoch + counter, five 16-bit backup registers) as a blank-commit → payload → valid-commit transaction and reinstates the epoch from it | `SOFTWARE IMPLEMENTED` · `HOST VERIFIED` on the pure anchor model (replay of every write prefix) · `HARDWARE VERIFICATION PENDING` (Stages A/B/O) |
 | Retains time without main power | Needs VBAT wired on the real board | `HARDWARE VERIFICATION PENDING` — never claimed by firmware (`CAP_RTC_BATTERY_BACKED` is always clear) |
 | Refuses a reconstruction it cannot justify | A sync timeout, a missing anchor, an unreadable counter or an implausible delta leaves the clock reported **unset** rather than guessing: losing time is safer than a wrong clock | `SOFTWARE IMPLEMENTED` · `HOST VERIFIED` |
@@ -95,7 +95,7 @@ physical display is marked as satisfied.
 | No large Chinese font table | ASCII-only, 1113 bytes |
 | No floating point in the signal chain | All filter and detector arithmetic is integer |
 | Flash must not be faked by changing the part | Device remains `STM32F103C8`, ROM `0x08000000` size `0x10000`, RAM `0x20000000` size `0x5000` — unchanged from Phase 0 |
-| Measured footprint | `Code=38364 RO=3096 RW=380 ZI=7524` → 41840 B flash (**63.8 %** of 64 KB), 7904 B RAM (**38.6 %** of 20 KB) |
+| Measured footprint | `Code=38392 RO=3096 RW=380 ZI=7524` → 41868 B flash (**63.9 %** of 64 KB), 7904 B RAM (**38.6 %** of 20 KB) |
 | Compiler warnings | `0 Warning(s)` at Keil warning level 2, no `--diag_suppress`, no blanket warning suppression |
 
 ## Not satisfied, stated plainly

@@ -16,7 +16,7 @@
 | MCU | STM32F103C8T6 — Cortex-M3, 64 KB flash, 20 KB SRAM |
 | Toolchain | Keil MDK-ARM (AC5 / ARMCC V5.06), STM32CubeMX 6.17.0, FW_F1 V1.8.7 |
 | Firmware build | `0 Error(s), 0 Warning(s)` |
-| Footprint | `Code=38364 RO=3096 RW=380 ZI=7524` → **63.8 % flash, 38.6 % RAM** |
+| Footprint | `Code=38392 RO=3096 RW=380 ZI=7524` → **63.9 % flash, 38.6 % RAM** |
 | Host tests | 6 C binaries, 1050 assertions · 256 pytest cases, 0 failures |
 | Hardware verified | **None.** See [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) |
 | Phase 0 baseline | tag `v0.1-baseline`, commit `eb8a795` |

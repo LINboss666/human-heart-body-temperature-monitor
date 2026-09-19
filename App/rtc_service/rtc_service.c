@@ -11,9 +11,11 @@
  *  1. The RTC core. A 32-bit seconds counter in the backup domain, still running
  *     through NRST and through VDD removal with VBAT applied. Nothing here can
  *     make it survive; it either is powered or it is not.
- *  2. The APB interface that presents that counter as CNTH/CNTL. Its registers
+ *  2. The APB interface that presents that counter as CNTH/CNTL. It has to be
+ *     clocked (RCC_BDCR RTCEN) before its registers respond, and its registers
  *     are synchronised copies, so after a reset they must be re-acquired (RSF)
- *     before they can be trusted. rtc_sync_before_read() does that.
+ *     before they can be trusted. rtc_clock_prepare() and
+ *     rtc_sync_before_read() do those two, in that order.
  *  3. The anchor in backup registers, mapping counter readings to Unix seconds.
  *     Written as a transaction: blank commit, payload, valid commit last.
  *
@@ -22,9 +24,10 @@
  * there; HAL_RTCEx_BKUPRead/Write are the exception because they ignore the
  * handle. Reading RTC registers additionally needs the PWR and BKP clocks and the
  * DBP access bit, which the generated HAL_RTC_MspInit sets up only later, so
- * bkp_unlock() does it here first. The RTC interface clock (RCC_BDCR RTCEN) is
- * already on, enabled by HAL_RCCEx_PeriphCLKConfig in SystemClock_Config, so the
- * register access cannot hang the bus.
+ * bkp_unlock() does it here first. Clocking the RTC interface is a third,
+ * separate step: HAL_RCCEx_PeriphCLKConfig in SystemClock_Config selects the
+ * source but leaves RCC_BDCR RTCEN alone, so rtc_clock_prepare() enables it
+ * before any RTC register is touched.
  *
  * F1 backup registers are 16 bits wide, so each 32-bit half of the anchor needs
  * two of them; STM32F103C8 has ten in total and five are used.
@@ -70,6 +73,39 @@ static void bkp_write(uint32_t reg, uint32_t value)
 }
 
 /**
+ * Put the RTC interface into a state where its registers mean something.
+ *
+ * Selecting the RTC clock source and clocking the peripheral are two separate
+ * acts on STM32F1, and the generated code only performs the first one before
+ * MX_RTC_Init(): HAL_RCCEx_PeriphCLKConfig() ends in __HAL_RCC_RTC_CONFIG(),
+ * which is MODIFY_REG over RCC_BDCR_RTCSEL and never touches RTCEN. The bit is
+ * set later, by __HAL_RCC_RTC_ENABLE() inside HAL_RTC_MspInit(). After a genuine
+ * backup-domain reset - first ever boot, or a power-on with no VBAT - RTCEN is
+ * therefore still 0 here, so RSF could never arrive and the wait below would
+ * report a false failure with a healthy crystal.
+ *
+ * Setting it is idempotent (a bit-band write of 1 to a bit that is already 1),
+ * which is what makes this safe on the warm path where MspInit set it in a
+ * previous session and the backup domain survived. Nothing here changes RTCSEL
+ * and nothing resets the backup domain: the source is only read, to honour the
+ * HAL's own precondition on the enable macro ("must be used only after the RTC
+ * clock source was selected"). With no source selected the interface would be
+ * clocked from nothing, so the caller is told not to touch RTC registers at all.
+ *
+ * Needs DBP plus the PWR and BKP clocks, which bkp_unlock() has just done;
+ * without DBP neither the read of BDCR nor the write of RTCEN would land.
+ */
+static bool rtc_clock_prepare(void)
+{
+    if (__HAL_RCC_GET_RTC_SOURCE() == RCC_RTCCLKSOURCE_NO_CLK) {
+        return false;
+    }
+
+    __HAL_RCC_RTC_ENABLE();
+    return true;
+}
+
+/**
  * Bring the APB-visible RTC registers in step with the RTC core, and report
  * whether that completed.
  *
@@ -87,10 +123,13 @@ static void bkp_write(uint32_t reg, uint32_t value)
  * nor any other HAL_RTC_* call can be used this early. HAL_RTCEx_BKUPRead/Write
  * are the exception, and take the handle only to ignore it (UNUSED(hrtc)).
  *
- * Bounded by the HAL's own RTC_TIMEOUT_VALUE. If LSE is not running the wait
- * expires rather than hanging the boot; nothing before MX_RTC_Init() can have
- * failed for want of a clock here, because HAL_RCC_OscConfig() has already
- * returned with LSE ready or taken Error_Handler().
+ * Call it only after rtc_clock_prepare() has said the peripheral is clocked;
+ * RSF is produced by RTCCLK, so an unclocked interface can never set it.
+ *
+ * Bounded by the HAL's own RTC_TIMEOUT_VALUE, so an absent crystal expires the
+ * wait instead of hanging the boot. HAL_RCC_OscConfig() has already returned with
+ * LSE ready or taken Error_Handler() by this point, so a timeout here means the
+ * RTC is not being clocked from it rather than that the crystal is silent.
  */
 static bool rtc_sync_before_read(void)
 {
@@ -247,12 +286,15 @@ void rtc_service_preserve(void)
 {
     bkp_unlock();
 
-    /* Order matters: unlock the backup interface, re-acquire the APB shadow, and
-     * only then read the counter and the anchor. CNTH/CNTL are synchronised
-     * copies of the RTC core; reading them before RSF has been re-acquired after
-     * this reset can return the value latched before it, which would make the
-     * elapsed delta wrong in either direction -- zero included. */
-    s_counter_valid = rtc_sync_before_read();
+    /* Order matters: unlock the backup interface, clock the RTC, re-acquire the
+     * APB shadow, and only then read the counter and the anchor. RTCEN is not set
+     * until HAL_RTC_MspInit, which has not run yet, so without rtc_clock_prepare()
+     * a cold start would wait for an RSF that an unclocked interface cannot raise.
+     * CNTH/CNTL are then still synchronised copies of the RTC core: reading them
+     * before RSF has been re-acquired after this reset can return the value
+     * latched before it, which would make the elapsed delta wrong in either
+     * direction -- zero included. */
+    s_counter_valid = rtc_clock_prepare() && rtc_sync_before_read();
     s_sync_failed = !s_counter_valid;
 
     /* The one reading that cannot be taken later. Everything after this point in

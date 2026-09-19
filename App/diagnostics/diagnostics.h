@@ -67,9 +67,10 @@ diagnostics_t *diagnostics(void);
 enum {
     DIAG_ERR_NONE             = 0U,
     DIAG_ERR_ACQUISITION_START = 200U,  /**< ADC calibration or DMA arming failed */
-    DIAG_ERR_RTC_SYNC         = 201U    /**< RTC register sync never completed;
-                                             the clock is reported unset because the
-                                             elapsed interval cannot be known */
+    DIAG_ERR_RTC_SYNC         = 201U    /**< RTC was never clocked/synchronised in time
+                                             to read its counter; the clock is reported
+                                             unset because the elapsed interval cannot
+                                             be known */
 };
 
 /** Record a protocol-level failure and keep the reason for the STATUS page. */
