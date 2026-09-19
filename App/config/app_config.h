@@ -97,8 +97,10 @@
 
 /* ------------------------------------------------------------- temperature */
 
-/** Application-level temperature update period, milliseconds (requirement <=500). */
-#define TEMP_UPDATE_PERIOD_MS           250U
+/* The update period is not defined here on purpose. It used to be a hand-written
+ * 250U sitting next to TEMP_AVERAGE_WINDOW's own 250U in
+ * temperature_calibration.h, two literals that had to agree with each other and
+ * with the sample rate but nothing checked. It is now derived there. */
 
 /** Display resolution is 0.1 degC; internal unit is centi-degC (3657 = 36.57). */
 #define TEMP_DISPLAY_DECIMALS           1U

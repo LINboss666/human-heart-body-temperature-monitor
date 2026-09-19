@@ -14,6 +14,24 @@
 static uint32_t      s_sum;
 static uint16_t      s_count;
 static temperature_t s_out;
+
+/*
+ * The three streaks below count AVERAGED UPDATES, not samples: they are only
+ * touched after the TEMP_AVERAGE_WINDOW guard in temperature_feed() lets a
+ * reading through. One step is therefore TEMP_UPDATE_PERIOD_MS long, which at the
+ * shipping settings makes a probe fault take 31.25 s to latch and 62.5 s to
+ * clear. Asserting the period divides exactly keeps that arithmetic honest; if it
+ * ever does not, the stated latencies in temperature_calibration.h are wrong.
+ */
+typedef char temp_update_period_is_whole_ms[
+    ((uint32_t)TEMP_AVERAGE_WINDOW * 1000U % (uint32_t)ADC_SAMPLE_RATE_HZ) == 0U
+    ? 1 : -1];
+typedef char temp_update_period_meets_the_500ms_requirement[
+    TEMP_UPDATE_PERIOD_MS <= 500U ? 1 : -1];
+typedef char temp_fault_confirm_fits_a_streak[
+    ((uint32_t)TEMP_PROBE_FAULT_CONFIRM * TEMP_UPDATE_PERIOD_MS) > TEMP_UPDATE_PERIOD_MS
+    ? 1 : -1];
+
 static uint16_t      s_open_streak;
 static uint16_t      s_short_streak;
 static uint16_t      s_ok_streak;

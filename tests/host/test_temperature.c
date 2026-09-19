@@ -134,12 +134,70 @@ static void test_get_is_null_safe(void)
     CHECK(1);
 }
 
+/*
+ * The confirmation streaks count averaged updates, not samples. That distinction
+ * was once written down as "125 ms at 1 kHz" for a delay that is 31.25 s, so the
+ * boundary is pinned here in both units: exactly how many windows, and how many
+ * milliseconds that costs at the shipping decimation.
+ */
+static void test_probe_confirm_latency_is_in_updates(void)
+{
+    temperature_t t;
+
+    CTEST_CASE("one update is 250 ms at the shipping settings");
+    CHECK_EQ(TEMP_UPDATE_PERIOD_MS, 250U);
+    CHECK_EQ((uint32_t)TEMP_AVERAGE_WINDOW, 250U);
+
+    CTEST_CASE("a fault latches on exactly the CONFIRM-th update, not earlier");
+    temperature_init();
+    fill(TEMP_ADC_OPEN_THRESHOLD, TEMP_PROBE_FAULT_CONFIRM - 1U);
+    temperature_get(&t);
+    CHECK(!t.probe_fault);
+    fill(TEMP_ADC_OPEN_THRESHOLD, 1U);
+    temperature_get(&t);
+    CHECK(t.probe_fault);
+
+    CTEST_CASE("latching a fault costs 31.25 s of wall clock, not 125 ms");
+    CHECK_EQ((uint32_t)TEMP_PROBE_FAULT_CONFIRM * TEMP_UPDATE_PERIOD_MS, 31250U);
+    temperature_get(&t);
+    CHECK_EQ(t.updates, (uint32_t)TEMP_PROBE_FAULT_CONFIRM);
+
+    CTEST_CASE("clearing takes exactly TEMP_PROBE_OK_CONFIRM further updates");
+    {
+        uint32_t before;
+
+        temperature_get(&t);
+        before = t.updates;
+        fill(2000U, TEMP_PROBE_OK_CONFIRM - 1U);
+        temperature_get(&t);
+        CHECK(t.probe_fault);             /* still latched one update short */
+        CHECK_EQ(t.updates, before + TEMP_PROBE_OK_CONFIRM - 1U);
+        fill(2000U, 1U);
+        temperature_get(&t);
+        CHECK(!t.probe_fault);
+        CHECK_EQ(t.updates, before + TEMP_PROBE_OK_CONFIRM);
+    }
+
+    CTEST_CASE("an alternating input never reaches either confirm count");
+    {
+        uint32_t i;
+
+        temperature_init();
+        for (i = 0U; i < 40U; i++) {
+            fill(i & 1U ? 2000U : TEMP_ADC_OPEN_THRESHOLD, 1U);
+        }
+        temperature_get(&t);
+        CHECK(!t.probe_fault);
+    }
+}
+
 CTEST_MAIN("temperature (uncalibrated)")
 {
     test_uncalibrated_never_invents_a_temperature();
     test_decimation_cadence();
     test_averaging_reduces_noise();
     test_probe_fault_is_latched_and_clears();
+    test_probe_confirm_latency_is_in_updates();
     test_alarm_bands_are_validated();
     test_get_is_null_safe();
 }

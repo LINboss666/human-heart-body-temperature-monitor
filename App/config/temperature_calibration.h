@@ -53,11 +53,18 @@ typedef enum {
 #define TEMP_ADC_OPEN_THRESHOLD     (ADC_FULL_SCALE_CODES - 64U)  /* UNVERIFIED */
 #define TEMP_ADC_SHORT_THRESHOLD    64U                           /* UNVERIFIED */
 
-/** Consecutive out-of-window samples before a probe fault is latched. */
-#define TEMP_PROBE_FAULT_CONFIRM    125U   /* 125 ms at 1 kHz, decimated input */
+/*
+ * Probe confirmation is counted in AVERAGED UPDATES, not in raw samples: the
+ * streaks in temperature.c only advance when a TEMP_AVERAGE_WINDOW average
+ * completes, so one step is TEMP_UPDATE_PERIOD_MS long, not 1 ms. The previous
+ * comment claimed "125 ms at 1 kHz" for a value that takes 31.25 s to elapse;
+ * the counts themselves are kept unchanged so no timing that was never measured
+ * on hardware is being re-tuned under cover of a documentation fix.
+ */
+#define TEMP_PROBE_FAULT_CONFIRM    125U   /* x 250 ms = 31.25 s to latch a fault */
 
-/** Consecutive in-window samples before the fault is cleared. */
-#define TEMP_PROBE_OK_CONFIRM       250U
+/** Consecutive in-window updates before a latched fault is cleared. */
+#define TEMP_PROBE_OK_CONFIRM       250U   /* x 250 ms = 62.50 s to clear */
 
 /* ---------------------------------------------------- plausible body range */
 
@@ -94,6 +101,18 @@ typedef enum {
  * many samples, which is also the fault-confirm time base.
  */
 #define TEMP_AVERAGE_WINDOW         250U   /* 250 ms, comfortably <= 500 ms */
+
+/**
+ * Wall-clock length of one averaged update, and therefore of one step of the
+ * probe-confirmation streaks above. Derived rather than restated so the two
+ * cannot drift apart: TEMP_AVERAGE_WINDOW or the sample rate changes, and this
+ * follows. temperature.c asserts at compile time that it divides exactly.
+ *
+ * The course requirement is an application-level temperature reading at least
+ * every 500 ms; 250 ms leaves a 2x margin.
+ */
+#define TEMP_UPDATE_PERIOD_MS \
+    ((uint32_t)TEMP_AVERAGE_WINDOW * 1000U / (uint32_t)ADC_SAMPLE_RATE_HZ)
 
 /** Integer rounded division helper shared with temperature.c. */
 #define TEMP_DIV_ROUND(nom, den)    (((nom) + ((den) / 2)) / (den))
