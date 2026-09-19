@@ -7,7 +7,7 @@ work, no general cleanup, no redesign of anything that already worked.
 
 | | |
 | --- | --- |
-| Branch | `phase1/final-fixes` (pushed; **not** merged to `main`, **not** tagged) |
+| Branch | `phase1/final-fixes` → **merged into `main`** once the GPT review of this branch was accepted (see the end of §7); no release tag |
 | Starting commit | `282713b` (tip of `phase1/review-fixes`; that branch is unchanged) |
 | Predecessors | `phase1/full-system` → `phase1/review-fixes` → this branch |
 | Frozen baseline | tag `v0.1-baseline` → `eb8a795` (untouched) |
@@ -292,6 +292,12 @@ Still unknown after this pass, and not claimable:
 5. **KK_UI's KEY_OK page-focus change from the previous pass is still unexecuted** — Stage C
    of the hardware plan tests both directions.
 
-Then: do not merge to `main`, do not move `v0.1-baseline`, do not start Phase 2. The next
-piece of work is hardware bring-up against
+This pass was told to stop at a push: no merge, no moving `v0.1-baseline`, no Phase 2. The
+merge was the reviewer's call to make, and after the cold-start defect above was confirmed
+it was made — `phase1/final-fixes` at `8d5c3c9` is merged into `main` as a merge commit, with
+the three review branches left in place as the record. `v0.1-baseline` still points at
+Phase 0, and no release tag exists for Phase 1: what is on `main` is software that has never
+met the hardware it is written for.
+
+The next piece of work is hardware bring-up against
 [`HARDWARE_TEST_PLAN.md`](HARDWARE_TEST_PLAN.md), starting at Stage A.

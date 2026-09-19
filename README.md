@@ -202,7 +202,7 @@ Everything pending is itemised with a procedure in
 | [docs/UPSTREAM.md](docs/UPSTREAM.md) | Third-party provenance and licences |
 | [docs/REVIEW_HANDOFF.md](docs/REVIEW_HANDOFF.md) · [PHASE1_REVIEW_HANDOFF.md](docs/PHASE1_REVIEW_HANDOFF.md) · [PHASE1_REVIEW_FIX_HANDOFF.md](docs/PHASE1_REVIEW_FIX_HANDOFF.md) · [PHASE1_FINAL_HANDOFF.md](docs/PHASE1_FINAL_HANDOFF.md) | Independent review handoffs, and what each pass changed |
 
-Phase 0 is frozen at tag `v0.1-baseline`. Phase 1 software is frozen on branch
-`phase1/final-fixes`, which is the head of the review chain
-`phase1/full-system` → `phase1/review-fixes` → `phase1/final-fixes`. Neither is a claim of
-a finished instrument.
+Phase 0 is frozen at tag `v0.1-baseline`. Phase 1 software came in through the review chain
+`phase1/full-system` → `phase1/review-fixes` → `phase1/final-fixes` and is now merged into
+`main`; those branches remain as the record of each pass. None of that is a claim of a
+finished instrument: hardware verification stands at zero.

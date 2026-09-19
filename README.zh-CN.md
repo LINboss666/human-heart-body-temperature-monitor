@@ -191,6 +191,7 @@ python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
 | [docs/UPSTREAM.md](docs/UPSTREAM.md) | 第三方来源与授权 |
 | [docs/REVIEW_HANDOFF.md](docs/REVIEW_HANDOFF.md) · [PHASE1_REVIEW_HANDOFF.md](docs/PHASE1_REVIEW_HANDOFF.md) · [PHASE1_REVIEW_FIX_HANDOFF.md](docs/PHASE1_REVIEW_FIX_HANDOFF.md) · [PHASE1_FINAL_HANDOFF.md](docs/PHASE1_FINAL_HANDOFF.md) | 独立代码审查交接包，以及每一轮改了什么 |
 
-Phase 0 冻结在 tag `v0.1-baseline`。Phase 1 软件冻结在分支 `phase1/final-fixes`，它是审查链
-`phase1/full-system` → `phase1/review-fixes` → `phase1/final-fixes` 的末端。
-两者都不构成"这是一台完成度合格的仪器"的声明。
+Phase 0 冻结在 tag `v0.1-baseline`。Phase 1 软件经审查链
+`phase1/full-system` → `phase1/review-fixes` → `phase1/final-fixes` 完成后，现已合并进 `main`；
+这三条分支保留作为每一轮审查的记录。
+以上都不构成"这是一台完成度合格的仪器"的声明：硬件验证数量仍为零。
