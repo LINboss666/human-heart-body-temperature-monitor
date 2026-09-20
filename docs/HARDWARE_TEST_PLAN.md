@@ -108,22 +108,30 @@ product page, and only then pick a profile.
 (`SSD1306`, `SH1106` or `CH1116`) as a compiler define, rebuild, flash, reset.
 **Pass.** The MAIN menu is legible, centred, not shifted horizontally, not mirrored, not
 vertically smeared across page boundaries.
-**Measured 2026-09-19 — pixels PASS, profile chosen, menu still not seen.** A temporary
+**Measured 2026-09-19 — PASS, on the build with the descriptor lifetime fixed.** After
+`fix/ui-app-lifetime` was flashed, the panel shows the **MAIN menu with the text centred and
+no horizontal offset**, not mirrored and not smeared across page boundaries. That closes the
+two items the all-white frame could not decide: the SSD1306 profile's column offset of 0 is
+right for this module, and its COM scan / `0xDA` pairing put the rows where the driver thinks
+they are. The black screen before this was the dangling `KK_UI_App` descriptor, not the
+profile - see [KK_UI_NOTES.md](KK_UI_NOTES.md#the-descriptor-lifetime-contract-the-bug-that-made-a-real-panel-stay-black).
+**Measured 2026-09-19, first — pixels PASS, profile chosen.** A temporary
 debug branch bypassed KK_UI and drove the driver directly: `OLED_Init()` returned OK on the
 SSD1306 profile and a full-frame `OLED_Fill()` + `OLED_Update()` lit **every pixel** of the
 128×64 glass. So the bus, the init block including `0x8D,0x14`, page addressing and `0xAF`
 are all confirmed on hardware, and the "completely dark but acknowledged" row in the table
 below is ruled out for this module.
-**What that does not settle.** An all-white frame cannot reveal a column offset or a COM
-layout — every mapping shows white. The pattern is still needed: the temporary
-`debug/oled-bringup` branch has `OLED_BRINGUP_PATTERN_CHECKER` and `_BORDER` for exactly
-this, and reading the edges of one of those is the measurement.
-**And why the menu was black anyway.** The frozen firmware showed nothing at all despite the
-ACK, because `ui_app_init()` handed `KK_UI_Init()` the address of a stack-local descriptor
-that KK_UI keeps using on every frame. See
+**What that frame could not settle, and what did.** An all-white frame cannot reveal a column
+offset or a COM layout — every mapping shows white, so the pattern step was still owed. The
+centred MAIN menu described above is what paid it: text placed by those same parameters
+arrives where the driver intends. (The `debug/oled-bringup` branch also carries
+`OLED_BRINGUP_PATTERN_CHECKER` and `_BORDER` if a sharper measurement of the edges is ever
+wanted.)
+**And why the menu was black before the fix.** The frozen firmware showed nothing at all
+despite the ACK, because `ui_app_init()` handed `KK_UI_Init()` the address of a stack-local
+descriptor that KK_UI keeps using on every frame. See
 [KK_UI_NOTES.md](KK_UI_NOTES.md#the-descriptor-lifetime-contract-the-bug-that-made-a-real-panel-stay-black);
-the fix is on `fix/ui-app-lifetime`, and **this stage's pass criterion is still open** until
-that build is flashed and the menu is seen.
+the fix is `fix/ui-app-lifetime`.
 **Symptom → profile change.**
 | Symptom | Meaning |
 | --- | --- |

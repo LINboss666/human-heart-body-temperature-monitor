@@ -130,10 +130,11 @@ user, and consistent with everything below) and it acknowledges at **7-bit `0x3C
 `0x78`), which is what the address scan finds. A full-frame write lit every pixel of the
 128×64 glass, so the selected profile's charge-pump and display-on bytes work.
 
-**Still open, and not to be closed by inference.** The column offset and the COM pin layout.
-An all-white frame cannot reveal either: every mapping shows white. A checker or border
-pattern can, and that is the remaining part of stage E. The SH1106 and CH1116 profiles stay
-in the tree as candidates for a different module, not as live options.
+**Still open, and not to be closed by inference.** Nothing about this module's addressing
+any more. What remains genuinely undetermined is the behaviour of the other candidate
+profiles: if a different panel arrives, `0x3D`, a 132-column RAM with offset 2, or a
+different COM layout would each need the same kind of bench evidence, and an all-white frame
+cannot supply it — only a pattern with edges in it can.
 
 ## Font licensing, the one thing the MIT licences do not cover
 
@@ -170,6 +171,9 @@ have changed since:
    lighting every pixel of the 128×64 module. See
    [HARDWARE_TEST_PLAN.md](HARDWARE_TEST_PLAN.md) stages D and E.
 
-**Not yet seen on hardware:** the MAIN MENU rendered by the fixed firmware, button
-navigation, animation, and whether the column mapping is right. The host render is
-`HOST VERIFIED`, which is a different claim.
+**Not yet seen on hardware:** every page except the MAIN menu — the ECG waveform, BODY TEMP,
+STATUS, DATE & TIME, SETTINGS and ABOUT — plus button navigation and animation. The host
+render is `HOST VERIFIED`, which is a different claim. What the board did confirm on
+2026-09-19, after the lifetime fix, is the menu itself: centred text, no horizontal offset
+and no row scrambling, which is also the measurement that closes the column-offset and
+COM-layout questions for this module.
