@@ -20,7 +20,7 @@
 | Toolchain | Keil MDK-ARM (AC5 / ARMCC V5.06), STM32CubeMX 6.17.0, FW_F1 V1.8.7 |
 | Firmware build | `0 Error(s), 0 Warning(s)` |
 | Footprint | `Code=38244 RO=3228 RW=380 ZI=7524` → **63.9 % flash, 38.6 % RAM** |
-| Host tests | 7 C binaries, 1074 assertions · 256 pytest cases, 0 failures |
+| Host tests | 7 C binaries, 1074 assertions · 274 pytest cases, 0 failures |
 | Hardware verified | **OLED, end to end.** I2C1 on PB6/PB7, an SSD1306 module ACKing at 7-bit `0x3C`, its init sequence, a full-frame write lighting every pixel, and the MAIN menu rendered centred on the real panel — all 2026-09-19. Nothing else: see [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) |
 | Phase 0 baseline | tag `v0.1-baseline`, commit `eb8a795` |
 
@@ -171,7 +171,7 @@ marked, so they cannot be exported as a measurement.
 | --- | --- |
 | Compiles clean with no warning suppression | Any measurement from a human body |
 | 1074 host C assertions on the shipping integer code | That the RTC crystal starts, or VBAT retention |
-| 256 Python cases; 21 frames replayed from the C encoder | That any page besides the menu has been seen on glass |
+| 274 Python cases; 21 frames replayed from the C encoder | That any page besides the menu has been seen on glass |
 | Calendar round-trip 1970→2099, hour by hour | ±2 bpm heart-rate accuracy |
 | Font decodes under the vendor's own decoder | That the front-end gain or bias is right |
 | OLED bus, `0x3C` ACK, SSD1306 init, all-pixel write, centred MAIN menu — on hardware | That a waveform has ever moved on that panel |
