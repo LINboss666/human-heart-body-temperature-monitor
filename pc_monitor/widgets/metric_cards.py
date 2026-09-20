@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from .. import i18n
 from ..protocol import LeadState, TempState
 
 __all__ = ["MetricCard", "MetricStrip", "QUALITY_COLOURS", "TEMP_BLANK"]
@@ -55,11 +56,14 @@ class MetricCard(QtWidgets.QFrame):
         *,
         unit: str = "",
         initial: str = "--",
-        sub: str = "waiting for device",
+        sub: str = "",
         tooltip: str = "",
         quality: str = "idle",
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
+        """``title``, ``sub`` and ``tooltip`` are display strings: pass them through
+        :func:`pc_monitor.i18n.t` at the call site, which is where the literal lives.
+        ``unit`` and ``initial`` are protocol notation and stay as given."""
         super().__init__(parent)
         self.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
         self.setObjectName("MetricCard")
@@ -75,7 +79,7 @@ class MetricCard(QtWidgets.QFrame):
         self.title_label.setObjectName("CardTitle")
         self.value_label = QtWidgets.QLabel(self._compose(initial))
         self.value_label.setObjectName("CardValue")
-        self.sub_label = QtWidgets.QLabel(sub)
+        self.sub_label = QtWidgets.QLabel(sub or i18n.t("waiting for device"))
         self.sub_label.setObjectName("CardSub")
         self.sub_label.setWordWrap(True)
         self.sub_label.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -129,53 +133,53 @@ class MetricStrip(QtWidgets.QWidget):
         grid.setSpacing(6)
 
         self.hr = MetricCard(
-            "Heart rate",
+            i18n.t("Heart rate"),
             unit="bpm",
-            tooltip=(
+            tooltip=i18n.t(
                 "Only a rate the device certified is shown. hr_bpm, hr_state and "
                 "SFLAG_HR_VALID must all agree, otherwise the value is treated as "
                 "uncertified."
             ),
         )
         self.temperature = MetricCard(
-            "Temperature",
+            i18n.t("Temperature"),
             unit="\u00b0C",
             initial=TEMP_BLANK,
-            tooltip=(
+            tooltip=i18n.t(
                 "Blank as --.- while the device reports TEMP_UNCALIBRATED. The firmware's "
                 "temperature model is uncalibrated in this baseline, so no degrees claim exists."
             ),
         )
         self.lead = MetricCard(
-            "Lead state",
-            tooltip=(
+            i18n.t("Lead state"),
+            tooltip=i18n.t(
                 "UNKNOWN means no lead-off detection hardware is configured "
                 "(CAP_LEAD_HW_DETECT clear). It is rendered differently from "
                 "DISCONNECTED on purpose."
             ),
         )
         self.probe = MetricCard(
-            "Probe state",
-            tooltip=(
+            i18n.t("Probe state"),
+            tooltip=i18n.t(
                 "Derived from temp_state. Without CAP_PROBE_HW_DETECT the device can only "
                 "infer a fault from the ADC range, which is a heuristic, not a probe test."
             ),
         )
         self.recording = MetricCard(
-            "Recording",
-            tooltip="Elapsed time of the local recording, from the first stored sample.",
+            i18n.t("Recording"),
+            tooltip=i18n.t("Elapsed time of the local recording, from the first stored sample."),
         )
         self.loss = MetricCard(
-            "Packet loss",
-            tooltip=(
+            i18n.t("Packet loss"),
+            tooltip=i18n.t(
                 "Authoritative measure: first_sample_index discontinuity in ECG_BATCH, which "
                 "also catches the device dropping its own DMA blocks. Sequence gaps are "
                 "reported alongside as the link-level view."
             ),
         )
         self.crc = MetricCard(
-            "CRC errors",
-            tooltip="Frames rejected by CRC-16/CCITT-FALSE and resynchronised past.",
+            i18n.t("CRC errors"),
+            tooltip=i18n.t("Frames rejected by CRC-16/CCITT-FALSE and resynchronised past."),
         )
 
         cards = (self.hr, self.temperature, self.lead, self.probe, self.recording, self.loss, self.crc)
@@ -191,7 +195,7 @@ class MetricStrip(QtWidgets.QWidget):
         if not hr_valid or bpm <= 0:
             self.hr.set_value("--", quality="idle")
             self.hr.set_sub(
-                "%s: no certified rate from the device" % name if flags_present else name
+                i18n.t("%s: no certified rate from the device") % name if flags_present else name
             )
             return
         quality = {
@@ -202,7 +206,7 @@ class MetricStrip(QtWidgets.QWidget):
             HrState.INVALID: "bad",
         }.get(_as_hr(state), "normal")
         self.hr.set_value("%d" % bpm, quality=quality)
-        self.hr.set_sub(name + (" (certified)" if hr_valid else ""))
+        self.hr.set_sub(i18n.t("%s (certified)") % name if hr_valid else name)
 
     def set_temperature(
         self,
@@ -220,10 +224,12 @@ class MetricStrip(QtWidgets.QWidget):
         cadences and the last writer wins.
         """
         label = TempState(state).text if _in_range(TempState, state) else "STATE_%d" % state
-        suffix = " | via %s" % route if route else ""
+        suffix = i18n.t(" | via %s") % route if route else ""
         if not certified:
             self.temperature.set_value(TEMP_BLANK, quality="unknown")
-            self.temperature.set_sub("%s -- degrees are not claimed%s" % (label, suffix))
+            self.temperature.set_sub(
+                i18n.t("%s -- degrees are not claimed%s") % (label, suffix)
+            )
         else:
             celsius = centi / 100.0
             quality = {
@@ -241,20 +247,29 @@ class MetricStrip(QtWidgets.QWidget):
         if state == int(TempState.PROBE_FAULT):
             self.probe.set_value("FAULT", quality="bad")
             self.probe.set_sub(
-                "probe fault reported"
-                + ("" if probe_hw_detect else " -- inferred from the ADC range, no probe hardware")
+                i18n.t("probe fault reported")
+                + (
+                    ""
+                    if probe_hw_detect
+                    else i18n.t(" -- inferred from the ADC range, no probe hardware")
+                )
             )
             return
         if not certified:
             self.probe.set_value("UNCAL", quality="unknown")
             self.probe.set_sub(
-                "temperature uncalibrated"
-                + ("" if probe_hw_detect else "; no probe-detect hardware")
+                i18n.t("temperature uncalibrated")
+                + ("" if probe_hw_detect else i18n.t("; no probe-detect hardware"))
             )
             return
         self.probe.set_value("OK", quality="good")
         self.probe.set_sub(
-            "in range" + ("" if probe_hw_detect else " -- heuristic only (CAP_PROBE_HW_DETECT clear)")
+            i18n.t("in range")
+            + (
+                ""
+                if probe_hw_detect
+                else i18n.t(" -- heuristic only (CAP_PROBE_HW_DETECT clear)")
+            )
         )
 
     def set_lead(self, state: int, *, lead_hw_detect: bool) -> None:
@@ -262,7 +277,7 @@ class MetricStrip(QtWidgets.QWidget):
         lead = LeadState(state) if known else LeadState.UNKNOWN
         if not known:
             self.lead.set_value("REPORTED %d" % state, quality="unknown")
-            self.lead.set_sub("outside lead_state_t")
+            self.lead.set_sub(i18n.t("outside lead_state_t"))
             return
         quality = {
             LeadState.UNKNOWN: "unknown",
@@ -273,39 +288,44 @@ class MetricStrip(QtWidgets.QWidget):
         self.lead.set_value(lead.text, quality=quality)
         if lead is LeadState.UNKNOWN:
             self.lead.set_sub(
-                "no lead-off hardware configured"
+                i18n.t("no lead-off hardware configured")
                 if not lead_hw_detect
-                else "hardware present, reports UNKNOWN"
+                else i18n.t("hardware present, reports UNKNOWN")
             )
         elif lead is LeadState.SIGNAL_POOR:
-            self.lead.set_sub("software judgement, NOT an electrode verdict")
+            self.lead.set_sub(i18n.t("software judgement, NOT an electrode verdict"))
         elif lead is LeadState.DISCONNECTED:
-            self.lead.set_sub("reported by lead-off hardware" if lead_hw_detect else "unexpected without hardware")
+            self.lead.set_sub(
+                i18n.t("reported by lead-off hardware")
+                if lead_hw_detect
+                else i18n.t("unexpected without hardware")
+            )
         else:
-            self.lead.set_sub("electrodes reported connected")
+            self.lead.set_sub(i18n.t("electrodes reported connected"))
 
     def set_recording(self, *, active: bool, seconds: float, rows: int) -> None:
         stamp = _mmss(seconds)
         if active:
             self.recording.set_value(stamp, quality="bad" if rows else "warn")
-            self.recording.set_sub("recording, %s rows" % f"{rows:,}")
+            self.recording.set_sub(i18n.t("recording, %s rows") % f"{rows:,}")
         elif rows:
             self.recording.set_value(stamp, quality="idle")
-            self.recording.set_sub("stopped, %s rows held" % f"{rows:,}")
+            self.recording.set_sub(i18n.t("stopped, %s rows held") % f"{rows:,}")
         else:
             self.recording.set_value("00:00", quality="idle")
-            self.recording.set_sub("not recording")
+            self.recording.set_sub(i18n.t("not recording"))
 
     def set_loss(self, samples_missing: int, index_gaps: int, sequence_missing: int) -> None:
         total = samples_missing + sequence_missing
         self.loss.set_value(f"{samples_missing:,}", quality="good" if not total else "warn")
         self.loss.set_sub(
-            "%d index gap(s); %d packet(s) missing by sequence" % (index_gaps, sequence_missing)
+            i18n.t("%d index gap(s); %d packet(s) missing by sequence")
+            % (index_gaps, sequence_missing)
         )
 
     def set_crc_errors(self, count: int, discarded: int = 0) -> None:
         self.crc.set_value(f"{count:,}", quality="good" if not count else "bad")
-        self.crc.set_sub("%d byte(s) discarded while resyncing" % discarded)
+        self.crc.set_sub(i18n.t("%d byte(s) discarded while resyncing") % discarded)
 
 
 # ---------------------------------------------------------------- small helpers

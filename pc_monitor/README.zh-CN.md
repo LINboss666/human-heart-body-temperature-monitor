@@ -15,9 +15,10 @@
 python -m venv .venv
 .venv/Scripts/pip install -r requirements.txt
 
-.venv/Scripts/python -m pc_monitor --demo            # no board needed
-.venv/Scripts/python -m pc_monitor --port COM7       # a real device
-.venv/Scripts/python -m pytest tests -q              # 251 cases
+.venv/Scripts/python -m pc_monitor --demo            # 不需要开发板
+.venv/Scripts/python -m pc_monitor --port COM7       # 接真实设备
+.venv/Scripts/python -m pc_monitor --demo --lang en  # 英文界面
+.venv/Scripts/python -m pytest tests -q              # 274 个用例
 ```
 
 `--demo` 合成 1 kHz ECG，因此每一条路径 —— 组帧、绘图、指标卡、录制、CSV/XLSX、RTC 设置 ——
@@ -32,6 +33,16 @@ python -m venv .venv
 `--demo-uncalibrated` 复现出货固件实际报告的内容：`TEMP_UNCALIBRATED`，于是温度卡显示
 `--.-` 而不是一个数字。
 
+## 语言
+
+界面默认是中文 —— 标签、提示气泡、事件日志、工作簿的 sheet 名以及 CSV 表头都是。
+`--lang en` 换回英文原文，行为测试也正是钉在英文上跑的，这样改一处措辞不会被误当成
+功能回归。协议词汇在两种语言里都刻意不翻译：包名（`ECG_BATCH`、`TEMP_STATUS`）、
+字段名（`sample_index`、`temp_centi`）、枚举成员与单位一律照固件的定义原样保留，
+因为日志行和导出文件正是靠它们与 [docs/PROTOCOL.md](../docs/PROTOCOL.md) 对齐。
+表头可以在字段名前面加一个中文标签，但字段名不会消失，列的顺序由
+`recorder.ROW_COLUMNS` 固定。
+
 ## 各个文件是什么
 
 | 文件 | 作用 |
@@ -45,6 +56,7 @@ python -m venv .venv
 | `demo_source.py` | `DemoDevice`，一个讲真实协议的合成对端。 |
 | `app.py` | Qt 窗口与 `AcquisitionEngine`，从协议到像素的唯一桥梁。 |
 | `widgets/` | `EcgPane`（pyqtgraph 波形），`MetricStrip`、`ConnectionPanel`、`StatusStrip`。 |
+| `i18n.py` | 语言层：以英文原句为 key，用 `--lang zh\|en` 选择；任何没有译文的字符串会被记账，而不是悄悄回退。`i18n_app.py`、`i18n_widgets.py`、`i18n_export.py` 各自注册自己的表。 |
 
 ## 值得知道的设计决策
 
@@ -72,6 +84,7 @@ python -m venv .venv
 | `test_protocol_vectors.py` | 21 个帧**由固件自己的 `crc16.c` 和 `protocol.c` 生成**（见 `tools/gen_protocol_vectors.py`），在此重放。其中包含一项陈旧快照检查，会重新编译 C 并与 JSON 做差异比对。 |
 | `test_framing.py` | CRC 的性质、重新同步，以及每一个 `status_flags_t` 位都能往返 —— 包括那个曾经被丢掉的高字节 `ECGP_TAIL`。 |
 | `test_gui_smoke.py` | 在 `QT_QPA_PLATFORM=offscreen` 下构建真实的窗口，点击 *Start acquisition* 和 *Record*，并断言样本、被绘出的点和导出的行都出现了。 |
+| `test_i18n.py` | 语言的契约：占位符必须活过翻译，同一句不得有两种译法，协议名词不得被翻掉，任何字符串都不允许在没有词条的情况下被显示 —— 它会真的构建窗口，逐个检查标签、提示气泡与日志行。还证明中文导出的列顺序与数据格与英文导出完全一致。 |
 
 当你改动 `app.py` 或 `widgets/` 下的任何东西时，显式跑一遍 GUI 组：
 

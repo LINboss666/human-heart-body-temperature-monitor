@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from . import i18n
 from .app import DEFAULT_WINDOW_SECONDS, run
 from .serial_worker import DEFAULT_BAUD
 
@@ -73,6 +74,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="with --demo, report TEMP_UNCALIBRATED so the temperature card shows --.-",
     )
     parser.add_argument(
+        "--lang",
+        choices=list(i18n.LANGUAGES),
+        default=i18n.DEFAULT_LANGUAGE,
+        help="interface language (default %(default)s; en keeps the English labels)",
+    )
+    parser.add_argument(
         "--version",
         action="store_true",
         help="print the tool and protocol version and exit",
@@ -100,6 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         window_seconds=args.window_seconds,
         demo_hr=args.demo_hr,
         demo_uncalibrated=args.demo_uncalibrated,
+        lang=args.lang,
     )
 
 
