@@ -185,3 +185,18 @@ class TestErrorSurfacing:
         pump(0.2)
         assert label_text(win.panel) != before or win.log.toPlainText()
         win.close()
+
+
+class TestLinkProbe:
+    def test_the_ping_button_completes_a_round_trip(self, window):
+        """The token must survive the demo device's echo, so it has to be 4 bytes.
+
+        ``time.monotonic() * 1000`` is a float, and a float has no ``to_bytes``,
+        so an uncast token made this button raise before anything reached the wire.
+        """
+        window.stream_button.click()
+        pump(0.3)
+        window.panel.ping_button.click()
+        pump(0.6)
+        assert window.engine.ping_rtt_ms is not None, "no PONG came back"
+        assert 0.0 <= window.engine.ping_rtt_ms < 5000.0

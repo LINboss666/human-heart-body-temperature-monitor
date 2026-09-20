@@ -442,7 +442,7 @@ class AcquisitionEngine(QtCore.QObject):
         return self.set_rtc(rtc_module.pc_calendar())
 
     def ping(self) -> int:
-        self._ping_token = bytes((time.monotonic() * 1000 % 0xFFFFFFFF).to_bytes(4, "little"))
+        self._ping_token = (int(time.monotonic() * 1000) % 0xFFFFFFFF).to_bytes(4, "little")
         self._ping_sent_at = time.monotonic()
         return self.worker.send_command(protocol.PacketType.PING, self._ping_token)
 
