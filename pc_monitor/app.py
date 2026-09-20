@@ -37,6 +37,7 @@ from typing import Any, Callable
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from . import i18n
 from . import protocol
 from . import rtc as rtc_module
 from .demo_source import (
@@ -125,7 +126,9 @@ class AcquisitionEngine(QtCore.QObject):
         for event in self.tracker.observe(frame):
             self._events_seen += 1
             self.last_event_text = event.detail
-            self.logMessage.emit("%s: %s" % (event.kind.name, event.detail))
+            # ``kind.name`` and ``detail`` are protocol vocabulary: only the
+            # separator between them is ours, and it becomes a full-width colon.
+            self.logMessage.emit(i18n.t("%s: %s") % (event.kind.name, event.detail))
         if frame.type == protocol.PacketType.HELLO:
             self._on_hello(frame)
         elif frame.type == protocol.PacketType.STATUS:
@@ -143,33 +146,33 @@ class AcquisitionEngine(QtCore.QObject):
         try:
             hello = protocol.Hello.decode(frame.payload)
         except protocol.MalformedPayload as exc:
-            self.logMessage.emit("HELLO rejected: %s" % exc)
+            self.logMessage.emit(i18n.t("HELLO rejected: %s") % exc)
             return
         self.hello = hello
         self.session.hello = hello  # type: ignore[attr-defined]
         if hello.proto_version != protocol.PROTOCOL_VERSION:
             self.logMessage.emit(
-                "WARNING device protocol 0x%02X, host mirrors 0x%02X"
+                i18n.t("WARNING device protocol 0x%02X, host mirrors 0x%02X")
                 % (hello.proto_version, protocol.PROTOCOL_VERSION)
             )
         self.logMessage.emit(
-            "HELLO fw %s, %d Hz, batch<=%d, %d-bit, caps 0x%04X"
+            i18n.t("HELLO fw %s, %d Hz, batch<=%d, %d-bit, caps 0x%04X")
             % (hello.fw_version, hello.sample_rate_hz, hello.batch_max_samples, hello.adc_bits, hello.caps)
         )
         if not self.demo and looks_like_demo(hello, frame.payload):
-            self.demoSuspected.emit("device looks synthetic (firmware 0.0.0)")
+            self.demoSuspected.emit(i18n.t("device looks synthetic (firmware 0.0.0)"))
 
     def _on_status(self, frame: protocol.Frame) -> None:
         try:
             self.status = protocol.StatusPacket.decode(frame.payload)
         except protocol.MalformedPayload as exc:
-            self.logMessage.emit("STATUS rejected: %s" % exc)
+            self.logMessage.emit(i18n.t("STATUS rejected: %s") % exc)
 
     def _on_temp_status(self, frame: protocol.Frame) -> None:
         try:
             self.temp_status = protocol.TempStatus.decode(frame.payload)
         except protocol.MalformedPayload as exc:
-            self.logMessage.emit("TEMP_STATUS rejected: %s" % exc)
+            self.logMessage.emit(i18n.t("TEMP_STATUS rejected: %s") % exc)
             return
         self._status_temp = (
             self.temp_status.temp_centi,
@@ -182,7 +185,7 @@ class AcquisitionEngine(QtCore.QObject):
         try:
             batch = protocol.EcgBatch.decode(frame.payload)
         except protocol.MalformedPayload as exc:
-            self.logMessage.emit("ECG_BATCH rejected: %s" % exc)
+            self.logMessage.emit(i18n.t("ECG_BATCH rejected: %s") % exc)
             return
         self._sample_period_us = batch.sample_period_us or self._sample_period_us
         codes = batch.samples
@@ -205,17 +208,20 @@ class AcquisitionEngine(QtCore.QObject):
         try:
             calendar = protocol.RtcCalendar.decode(frame.payload)
         except protocol.MalformedPayload as exc:
-            self.logMessage.emit("RTC_RESPONSE rejected: %s" % exc)
+            self.logMessage.emit(i18n.t("RTC_RESPONSE rejected: %s") % exc)
             return
         self.rtc = calendar
         self.rtcResponded.emit(calendar)
-        self.logMessage.emit("device clock: %s" % calendar.text)
+        self.logMessage.emit(i18n.t("device clock: %s") % calendar.text)
 
     def _on_pong(self, frame: protocol.Frame) -> None:
         if self._ping_sent_at is not None:
             self.ping_rtt_ms = (time.monotonic() - self._ping_sent_at) * 1000.0
             self._ping_sent_at = None
-        self.logMessage.emit("PONG %s (%s ms round trip)" % (frame.payload.hex(), "n/a" if self.ping_rtt_ms is None else "%.0f" % self.ping_rtt_ms))
+        self.logMessage.emit(
+            i18n.t("PONG %s (%s ms round trip)")
+            % (frame.payload.hex(), "n/a" if self.ping_rtt_ms is None else "%.0f" % self.ping_rtt_ms)
+        )
 
     def _check_temp_routes(self) -> None:
         """``temp_state`` is carried by ECG_BATCH flags *and* TEMP_STATUS.
@@ -239,24 +245,24 @@ class AcquisitionEngine(QtCore.QObject):
         self.link["open"] = True
         self.link["label"] = label
         self.session.source_label = label
-        self.logMessage.emit("port open: %s" % label)
+        self.logMessage.emit(i18n.t("port open: %s") % label)
 
     @QtCore.Slot(str)
     def handle_port_closed(self, label: str) -> None:
         self.link["open"] = False
-        self.logMessage.emit("port closed: %s" % label)
+        self.logMessage.emit(i18n.t("port closed: %s") % label)
 
     @QtCore.Slot(str)
     def handle_port_error(self, message: str) -> None:
-        self.logMessage.emit("link error: %s" % message)
+        self.logMessage.emit(i18n.t("link error: %s") % message)
 
     @QtCore.Slot(object)
     def handle_command_result(self, result: tuple) -> None:
         acked_type, sequence, ok, reason = result
-        text = "%s of seq %d: %s" % (
+        text = i18n.t("%s of seq %d: %s") % (
             protocol.packet_type_name(int(acked_type)),
             int(sequence),
-            "accepted" if ok else "rejected (%s)" % reason,
+            i18n.t("accepted") if ok else i18n.t("rejected (%s)") % reason,
         )
         self.commandAnswered.emit(text)
         self.logMessage.emit(text)
@@ -347,9 +353,10 @@ class AcquisitionEngine(QtCore.QObject):
             "buffered": len(self.buffer),
             "device_line": self._device_line(),
             "identity": (
-                "fw %s proto 0x%02X, %d Hz" % (self.hello.fw_version, self.hello.proto_version, self.hello.sample_rate_hz)
+                i18n.t("fw %s proto 0x%02X, %d Hz")
+                % (self.hello.fw_version, self.hello.proto_version, self.hello.sample_rate_hz)
                 if self.hello
-                else "no HELLO received"
+                else i18n.t("no HELLO received")
             ),
             "ping_rtt_ms": self.ping_rtt_ms,
             "batch": batch[0] if batch else None,
@@ -363,19 +370,24 @@ class AcquisitionEngine(QtCore.QObject):
         return 0.0
 
     def _device_line(self) -> str:
-        """One line from STATUS, in the same words the OLED STATUS page uses."""
+        """One line from STATUS, in the same words the OLED STATUS page uses.
+
+        The ``ADC``/``DMA``/``UART``/``OLED``/``RTC`` tokens are the STATUS
+        packet's own field names, so they stay English in both languages; only
+        the words around them are translated.
+        """
         status = self.status
         if status is None:
-            return "waiting for STATUS"
+            return i18n.t("waiting for STATUS")
         parts = [
-            "uptime %s" % _hms(status.uptime_s),
-            "ADC %s" % ("running" if status.adc_running else "stopped"),
-            "DMA %d blocks / %d dropped" % (status.dma_blocks, status.dma_dropped),
-            "%d ECG samples" % status.ecg_samples,
-            "UART tx %d rx %d crc %d proto %d"
+            i18n.t("uptime %s") % _hms(status.uptime_s),
+            i18n.t("ADC %s") % (i18n.t("running") if status.adc_running else i18n.t("stopped")),
+            i18n.t("DMA %d blocks / %d dropped") % (status.dma_blocks, status.dma_dropped),
+            i18n.t("%d ECG samples") % status.ecg_samples,
+            i18n.t("UART tx %d rx %d crc %d proto %d")
             % (status.uart_tx, status.uart_rx, status.uart_crc_err, status.proto_err),
-            "OLED %s" % ("0x%02X" % status.oled_addr if status.oled_present else "absent"),
-            "RTC %s" % ("valid" if status.rtc_valid else "not set"),
+            i18n.t("OLED %s") % ("0x%02X" % status.oled_addr if status.oled_present else i18n.t("absent")),
+            i18n.t("RTC %s") % (i18n.t("valid") if status.rtc_valid else i18n.t("not set")),
         ]
         return ", ".join(parts)
 
@@ -384,13 +396,14 @@ class AcquisitionEngine(QtCore.QObject):
         moment = self.session.start()
         if self.session.row_count == 0:
             self._recording_started_host = time.monotonic()
-        self.logMessage.emit("recording started at %s" % moment.isoformat(timespec="seconds"))
+        self.logMessage.emit(i18n.t("recording started at %s") % moment.isoformat(timespec="seconds"))
         return moment
 
     def stop_recording(self) -> dt.datetime:
         moment = self.session.stop(counters=self.counters())
         self.logMessage.emit(
-            "recording stopped: %s rows, %.1f s" % (f"{self.session.row_count:,}", self.session.duration_s())
+            i18n.t("recording stopped: %s rows, %.1f s")
+            % (f"{self.session.row_count:,}", self.session.duration_s())
         )
         return moment
 
@@ -409,7 +422,7 @@ class AcquisitionEngine(QtCore.QObject):
     def new_recording(self) -> None:
         self.session.clear()
         self._recording_started_host = None
-        self.logMessage.emit("recording buffer cleared")
+        self.logMessage.emit(i18n.t("recording buffer cleared"))
 
     # --------------------------------------------------------------- commands
     def start_stream(self) -> int:
@@ -475,8 +488,8 @@ class MonitorWindow(QtWidgets.QMainWindow):
         self._demo_uncalibrated = bool(demo_uncalibrated)
         self._autoconnect = bool(autoconnect)
         self.setWindowTitle(
-            "Human Heart & Body Temperature Monitor -- PC host"
-            + ("  [DEMO / SYNTHETIC DATA]" if self.demo else "")
+            i18n.t("Human Heart & Body Temperature Monitor -- PC host")
+            + (i18n.t("  [DEMO / SYNTHETIC DATA]") if self.demo else "")
         )
         self.resize(1360, 860)
 
@@ -540,12 +553,12 @@ class MonitorWindow(QtWidgets.QMainWindow):
         bar = self.statusBar()
         bar.setSizeGripEnabled(True)
         bar.addPermanentWidget(self.strip, 1)
-        bar.showMessage("ready", 5000)
+        bar.showMessage(i18n.t("ready"), 5000)
 
     def _build_banner(self) -> QtWidgets.QWidget | None:
         if not self.demo:
             return None
-        label = QtWidgets.QLabel(DEMO_BANNER)
+        label = QtWidgets.QLabel(i18n.t(DEMO_BANNER))
         label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         label.setObjectName("DemoBanner")
         label.setStyleSheet(
@@ -556,40 +569,42 @@ class MonitorWindow(QtWidgets.QMainWindow):
         return label
 
     def _build_controls_group(self) -> QtWidgets.QWidget:
-        box = QtWidgets.QGroupBox("Acquisition")
+        box = QtWidgets.QGroupBox(i18n.t("Acquisition"))
         grid = QtWidgets.QGridLayout(box)
         grid.setContentsMargins(8, 4, 8, 4)
 
-        self.stream_button = QtWidgets.QPushButton("Start acquisition")
+        self.stream_button = QtWidgets.QPushButton(i18n.t("Start acquisition"))
         self.stream_button.setCheckable(True)
         self.stream_button.setToolTip(
-            "Sends START_STREAM / STOP_STREAM. Those control *reporting* only: the ADC, TIM3 "
-            "and the DMA run from boot, so stopping never stops the converter."
+            i18n.t(
+                "Sends START_STREAM / STOP_STREAM. Those control *reporting* only: the ADC, TIM3 "
+                "and the DMA run from boot, so stopping never stops the converter."
+            )
         )
         grid.addWidget(self.stream_button, 0, 0)
 
-        self.record_button = QtWidgets.QPushButton("Start recording")
+        self.record_button = QtWidgets.QPushButton(i18n.t("Start recording"))
         self.record_button.setCheckable(True)
-        self.record_button.setToolTip("Rows are only written to the export buffer while this is on.")
+        self.record_button.setToolTip(i18n.t("Rows are only written to the export buffer while this is on."))
         grid.addWidget(self.record_button, 0, 1)
 
-        self.new_button = QtWidgets.QPushButton("New")
-        self.new_button.setToolTip("Discard the held rows so the next export cannot mix two sessions.")
+        self.new_button = QtWidgets.QPushButton(i18n.t("New"))
+        self.new_button.setToolTip(i18n.t("Discard the held rows so the next export cannot mix two sessions."))
         grid.addWidget(self.new_button, 0, 2)
 
-        self.export_csv_button = QtWidgets.QPushButton("Export CSV")
-        self.export_xlsx_button = QtWidgets.QPushButton("Export XLSX")
+        self.export_csv_button = QtWidgets.QPushButton(i18n.t("Export CSV"))
+        self.export_xlsx_button = QtWidgets.QPushButton(i18n.t("Export XLSX"))
         grid.addWidget(self.export_csv_button, 1, 0)
         grid.addWidget(self.export_xlsx_button, 1, 1, 1, 2)
 
-        self.status_note = QtWidgets.QLabel("idle")
+        self.status_note = QtWidgets.QLabel(i18n.t("idle"))
         self.status_note.setObjectName("CardSub")
         self.status_note.setWordWrap(True)
         grid.addWidget(self.status_note, 2, 0, 1, 3)
         return box
 
     def _build_log_group(self) -> QtWidgets.QWidget:
-        box = QtWidgets.QGroupBox("Events")
+        box = QtWidgets.QGroupBox(i18n.t("Events"))
         layout = QtWidgets.QVBoxLayout(box)
         layout.setContentsMargins(8, 4, 8, 4)
         self.log = QtWidgets.QPlainTextEdit()
@@ -647,9 +662,9 @@ class MonitorWindow(QtWidgets.QMainWindow):
             self.stream_button.setChecked(False)
             self.stream_button.setEnabled(True)
             self.panel.set_link_error("%s" % exc)
-            self._append_log("open failed: %s" % exc)
+            self._append_log(i18n.t("open failed: %s") % exc)
             return
-        self.panel.set_detail("opening %s" % label)
+        self.panel.set_detail(i18n.t("opening %s") % label)
         self.worker.request_open(source, label)
 
     def _on_disconnect(self) -> None:
@@ -662,43 +677,48 @@ class MonitorWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot(str)
     def _on_demo_suspected(self, text: str) -> None:
-        self._append_log("WARNING %s" % text)
+        self._append_log(i18n.t("WARNING %s") % text)
         self.pane.set_note(text)
 
     # ---------------------------------------------------------------- commands
     def _send(self, what: str, action: Callable[[], int]) -> None:
+        # ``what`` is a packet name and stays English; only the sentence around it
+        # is translated, so the key never contains a value.
         if not self.engine.link.get("open"):
-            self._append_log("%s not sent: port is closed" % what)
-            self.panel.show_command_result("%s not sent: port is closed" % what, ok=False)
+            message = i18n.t("%s not sent: port is closed") % what
+            self._append_log(message)
+            self.panel.show_command_result(message, ok=False)
             return
         sequence = action()
-        self._append_log("%s sent (seq %d)" % (what, sequence))
+        self._append_log(i18n.t("%s sent (seq %d)") % (what, sequence))
 
     def _on_stream_toggled(self, checked: bool) -> None:
         if checked:
             self._send("START_STREAM", self.engine.start_stream)
-            self.stream_button.setText("Stop acquisition")
+            self.stream_button.setText(i18n.t("Stop acquisition"))
         else:
             self._send("STOP_STREAM", self.engine.stop_stream)
-            self.stream_button.setText("Start acquisition")
+            self.stream_button.setText(i18n.t("Start acquisition"))
 
     def _on_record_toggled(self, checked: bool) -> None:
         if checked:
             self.engine.start_recording()
-            self.record_button.setText("Stop recording")
+            self.record_button.setText(i18n.t("Stop recording"))
         else:
             self.engine.stop_recording()
-            self.record_button.setText("Start recording")
+            self.record_button.setText(i18n.t("Start recording"))
 
     def _on_new_recording(self) -> None:
         if self.engine.session.row_count and self.record_button.isChecked():
-            QtWidgets.QMessageBox.information(self, "Still recording", "Stop the recording first.")
+            QtWidgets.QMessageBox.information(
+                self, i18n.t("Still recording"), i18n.t("Stop the recording first.")
+            )
             return
         if self.engine.session.row_count:
             answer = QtWidgets.QMessageBox.question(
                 self,
-                "Discard rows",
-                "Discard the %s rows held for export?" % f"{self.engine.session.row_count:,}",
+                i18n.t("Discard rows"),
+                i18n.t("Discard the %s rows held for export?") % f"{self.engine.session.row_count:,}",
             )
             if answer != QtWidgets.QMessageBox.StandardButton.Yes:
                 self.record_button.setChecked(True)
@@ -708,12 +728,18 @@ class MonitorWindow(QtWidgets.QMainWindow):
     def _on_sync_time(self) -> None:
         calendar = rtc_module.pc_calendar()
         self._append_log(
-            "SET_RTC %s (%s)" % (calendar.text, "PC wall clock" if not self.demo else "PC wall clock -> demo device")
+            i18n.t("SET_RTC %s (%s)")
+            % (
+                calendar.text,
+                i18n.t("PC wall clock -> demo device")
+                if self.demo
+                else i18n.t("PC wall clock"),
+            )
         )
         self._send("SET_RTC", self.engine.sync_rtc_from_pc)
 
     def _on_set_time(self, calendar: protocol.RtcCalendar) -> None:
-        self._append_log("SET_RTC %s (picked)" % calendar.text)
+        self._append_log(i18n.t("SET_RTC %s (picked)") % calendar.text)
         self._send("SET_RTC", lambda: self.engine.set_rtc(calendar))
 
     # ------------------------------------------------------------------ exports
@@ -722,20 +748,28 @@ class MonitorWindow(QtWidgets.QMainWindow):
         if session.row_count == 0:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Nothing recorded",
-                "No rows have been recorded, so there is nothing to export.\n"
-                "Start recording and let ECG_BATCH frames arrive first.",
+                i18n.t("Nothing recorded"),
+                i18n.t(
+                    "No rows have been recorded, so there is nothing to export.\n"
+                    "Start recording and let ECG_BATCH frames arrive first."
+                ),
             )
             return
         stem = default_stem(session)
         if csv:
             path, _chosen = QtWidgets.QFileDialog.getSaveFileName(
-                self, "Export CSV", "%s.csv" % stem, "CSV files (*.csv);;All files (*)"
+                self,
+                i18n.t("Export CSV"),
+                "%s.csv" % stem,
+                i18n.t("CSV files (*.csv);;All files (*)"),
             )
             writer = export_csv
         else:
             path, _chosen = QtWidgets.QFileDialog.getSaveFileName(
-                self, "Export XLSX", "%s.xlsx" % stem, "Excel workbook (*.xlsx);;All files (*)"
+                self,
+                i18n.t("Export XLSX"),
+                "%s.xlsx" % stem,
+                i18n.t("Excel workbook (*.xlsx);;All files (*)"),
             )
             writer = export_xlsx
         if not path:
@@ -745,12 +779,12 @@ class MonitorWindow(QtWidgets.QMainWindow):
             result = writer(session, path)
         except Exception as exc:
             QtWidgets.QApplication.restoreOverrideCursor()
-            QtWidgets.QMessageBox.critical(self, "Export failed", "%s" % exc)
-            self._append_log("export failed: %s" % exc)
+            QtWidgets.QMessageBox.critical(self, i18n.t("Export failed"), "%s" % exc)
+            self._append_log(i18n.t("export failed: %s") % exc)
             return
         QtWidgets.QApplication.restoreOverrideCursor()
-        self._append_log("wrote %s" % result.describe())
-        self.status_note.setText("last export: %s" % result.describe())
+        self._append_log(i18n.t("wrote %s") % result.describe())
+        self.status_note.setText(i18n.t("last export: %s") % result.describe())
         self.panel.show_command_result(result.describe(), ok=True)
 
     # ------------------------------------------------------------------ repaint
@@ -762,7 +796,7 @@ class MonitorWindow(QtWidgets.QMainWindow):
             indices,
             values,
             sample_rate_hz=metrics["sample_rate_hz"],
-            note=DEMO_SHORT if metrics["demo"] else "",
+            note=i18n.t(DEMO_SHORT) if metrics["demo"] else "",
         )
         self._paint_cards(metrics)
         self._paint_strip(metrics)
@@ -786,8 +820,15 @@ class MonitorWindow(QtWidgets.QMainWindow):
         self.cards.set_crc_errors(m["crc_errors"], m["discarded"])
 
     def _paint_strip(self, m: dict[str, Any]) -> None:
-        state = "demo (synthetic)" if m["demo"] else (m["link_label"] or "closed")
-        self.strip.set_link(state if m["link_open"] else ("demo closed" if m["demo"] else state), "good" if m["link_open"] else "idle")
+        state = (
+            i18n.t("demo (synthetic)")
+            if m["demo"]
+            else (m["link_label"] or i18n.t("closed"))
+        )
+        self.strip.set_link(
+            state if m["link_open"] else (i18n.t("demo closed") if m["demo"] else state),
+            "good" if m["link_open"] else "idle",
+        )
         self.strip.set_throughput(m["packets_per_s"], m["bytes_per_s"])
         self.strip.set_packets(m["packets"])
         self.strip.set_dropped(m["sequence_missing"])
@@ -796,11 +837,11 @@ class MonitorWindow(QtWidgets.QMainWindow):
         self.strip.set_samples(m["samples"], m["sample_rate_hz"])
         notes = []
         if m["malformed_batches"]:
-            notes.append("%d malformed batch(es)" % m["malformed_batches"])
+            notes.append(i18n.t("%d malformed batch(es)") % m["malformed_batches"])
         if m["temp_disagreements"]:
-            notes.append("%d temp_state route disagreements" % m["temp_disagreements"])
+            notes.append(i18n.t("%d temp_state route disagreements") % m["temp_disagreements"])
         if m["pending_bytes"]:
-            notes.append("%d byte(s) awaiting the rest of a frame" % m["pending_bytes"])
+            notes.append(i18n.t("%d byte(s) awaiting the rest of a frame") % m["pending_bytes"])
         self.strip.set_note(" | ".join(notes))
 
     def _paint_panel(self, m: dict[str, Any]) -> None:
@@ -809,7 +850,7 @@ class MonitorWindow(QtWidgets.QMainWindow):
         self.panel.show_status_line(m["device_line"])
         if m["link_open"]:
             self.panel.set_detail(
-                "%s | %s samples buffered for the plot | %s"
+                i18n.t("%s | %s samples buffered for the plot | %s")
                 % (m["link_label"], f"{m['buffered']:,}", _flag_text(m["flags"], m["flags_raw"]))
             )
 
@@ -833,21 +874,28 @@ class MonitorWindow(QtWidgets.QMainWindow):
         super().closeEvent(event)
 
 
+#: The plot's corner note in demo mode.  ``DEMO / SYNTHETIC`` is kept verbatim in
+#: both languages by the translation table, because it is the marker a screenshot
+#: is judged by.
 DEMO_SHORT = "DEMO / SYNTHETIC -- generated on this PC"
 
 
 def _flag_text(flags: protocol.Flags | None, raw: int) -> str:
+    """The flag notation, i.e. the batch's own field names and enum members.
+
+    Deliberately identical in both languages: every token here (``flags``,
+    ``lead=``, ``temp=``, ``hr_valid=``, ``notch=``) is copied from
+    ``protocol.h``, so it is looked up through ``t()`` for completeness and maps
+    to itself.
+    """
     if flags is None:
-        return "flags 0x%04X" % raw
-    return (
-        "flags 0x%04X lead=%s temp=%s hr_valid=%d notch=%s"
-        % (
-            raw,
-            flags.lead.name,
-            flags.temp.name,
-            int(flags.hr_valid),
-            flags.notch.text,
-        )
+        return i18n.t("flags 0x%04X") % raw
+    return i18n.t("flags 0x%04X lead=%s temp=%s hr_valid=%d notch=%s") % (
+        raw,
+        flags.lead.name,
+        flags.temp.name,
+        int(flags.hr_valid),
+        flags.notch.text,
     )
 
 
@@ -900,6 +948,7 @@ def run(
     demo_uncalibrated: bool = False,
     window_seconds: float = DEFAULT_WINDOW_SECONDS,
     smoke_seconds: float = 0.0,
+    lang: str = i18n.DEFAULT_LANGUAGE,
     argv: list[str] | None = None,
 ) -> int:
     """Build the QApplication and enter the event loop; returns the exit code.
@@ -908,7 +957,12 @@ def run(
     runs for that long, and a one-line counter summary goes to stdout instead of
     a window staying open.  That is what makes "it works" verifiable on a machine
     with no display, and it is what the tests use.
+
+    ``lang`` is resolved here rather than at import time because the language is a
+    runtime choice: every label is looked up through :func:`pc_monitor.i18n.t`
+    when it is set, so switching before the window is built is enough.
     """
+    i18n.set_language(lang)
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(argv or [])
     _apply_style(app)
     window = MonitorWindow(

@@ -25,6 +25,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 import pyqtgraph as pg
 
+from .. import i18n
 from ..protocol import SAMPLE_RATE_HZ
 
 __all__ = ["EcgPane", "WINDOW_CHOICES_S", "DEFAULT_WINDOW_S", "with_gap_breaks"]
@@ -104,9 +105,9 @@ class EcgPane(QtWidgets.QWidget):
         pg.setConfigOptions(antialias=False, background="#10151b", foreground="#c8d2dc")
         self.plot = pg.PlotWidget()
         self.plot.showGrid(x=True, y=True, alpha=0.25)
-        self.plot.setLabel("left", "ECG", units="mV at MCU pin")
-        self.plot.setLabel("bottom", "device time", units="s")
-        self.plot.setTitle("raw, unfiltered ADC code -- not a body-surface potential")
+        self.plot.setLabel("left", i18n.t("ECG"), units=i18n.t("mV at MCU pin"))
+        self.plot.setLabel("bottom", i18n.t("device time"), units="s")
+        self.plot.setTitle(i18n.t("raw, unfiltered ADC code -- not a body-surface potential"))
         self.plot.setMenuEnabled(False)  # right-click menu invites accidental log-scale
         self.plot.setMouseEnabled(x=True, y=True)
         self.plot.getViewBox().setMouseMode(pg.ViewBox.PanMode)
@@ -127,7 +128,7 @@ class EcgPane(QtWidgets.QWidget):
                 angle=0,
                 movable=False,
                 pen=pg.mkPen(_MIDRAIL_COLOUR, width=1, style=QtCore.Qt.PenStyle.DashLine),
-                label="assumed mid-rail 1650 mV (gain/offset UNVERIFIED)",
+                label=i18n.t("assumed mid-rail 1650 mV (gain/offset UNVERIFIED)"),
                 labelOpts={
                     "color": _MIDRAIL_COLOUR,
                     "fill": (0, 0, 0, 150),
@@ -155,42 +156,44 @@ class EcgPane(QtWidgets.QWidget):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(6)
 
-        self.pause_button = QtWidgets.QPushButton("Pause display")
+        self.pause_button = QtWidgets.QPushButton(i18n.t("Pause display"))
         self.pause_button.setCheckable(True)
         self.pause_button.setShortcut(QtGui.QKeySequence("Space"))
         self.pause_button.setToolTip(
-            "Freeze the picture only. Acquisition and recording keep running, so nothing "
-            "is lost: resuming shows the current window (Space)."
+            i18n.t(
+                "Freeze the picture only. Acquisition and recording keep running, so nothing "
+                "is lost: resuming shows the current window (Space)."
+            )
         )
         self.pause_button.toggled.connect(self._on_pause_toggled)
         row.addWidget(self.pause_button)
 
-        row.addWidget(QtWidgets.QLabel("Window"))
+        row.addWidget(QtWidgets.QLabel(i18n.t("Window")))
         self.window_combo = QtWidgets.QComboBox()
         for seconds in WINDOW_CHOICES_S:
             self.window_combo.addItem("%g s" % seconds, seconds)
         index = self.window_combo.findData(DEFAULT_WINDOW_S)
         self.window_combo.setCurrentIndex(max(0, index))
         self.window_combo.currentIndexChanged.connect(self._on_window_changed)
-        self.window_combo.setToolTip("10 s default = 10000 samples at 1 kHz.")
+        self.window_combo.setToolTip(i18n.t("10 s default = 10000 samples at 1 kHz."))
         row.addWidget(self.window_combo)
 
-        self.auto_y_check = QtWidgets.QCheckBox("Auto Y")
+        self.auto_y_check = QtWidgets.QCheckBox(i18n.t("Auto Y"))
         self.auto_y_check.setChecked(True)
         self.auto_y_check.toggled.connect(self._on_auto_y)
         row.addWidget(self.auto_y_check)
 
-        self.follow_check = QtWidgets.QCheckBox("Follow newest")
+        self.follow_check = QtWidgets.QCheckBox(i18n.t("Follow newest"))
         self.follow_check.setChecked(True)
-        self.follow_check.setToolTip("Turn off to zoom/pan and keep that range.")
+        self.follow_check.setToolTip(i18n.t("Turn off to zoom/pan and keep that range."))
         self.follow_check.toggled.connect(self._on_follow_toggled)
         row.addWidget(self.follow_check)
 
-        self.reset_button = QtWidgets.QPushButton("Reset view")
+        self.reset_button = QtWidgets.QPushButton(i18n.t("Reset view"))
         self.reset_button.clicked.connect(self.reset_view)
         row.addWidget(self.reset_button)
 
-        self.readout = QtWidgets.QLabel("no samples yet")
+        self.readout = QtWidgets.QLabel(i18n.t("no samples yet"))
         self.readout.setObjectName("CardSub")
         self.readout.setAlignment(
             QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter
@@ -275,12 +278,12 @@ class EcgPane(QtWidgets.QWidget):
         self._demo = bool(demo)
         colour = _DEMO_TRACE_COLOUR if self._demo else _TRACE_COLOUR
         self.curve.setPen(pg.mkPen(colour, width=1))
-        self.plot.setTitle(
-            ("DEMO / SYNTHETIC WAVEFORM -- generated on this PC, not measured\n"
-             if self._demo
-             else "")
-            + "raw, unfiltered ADC code -- not a body-surface potential"
-        )
+        title = i18n.t("raw, unfiltered ADC code -- not a body-surface potential")
+        if self._demo:
+            title = (
+                i18n.t("DEMO / SYNTHETIC WAVEFORM -- generated on this PC, not measured") + "\n" + title
+            )
+        self.plot.setTitle(title)
 
     def _fit_y(self, volts: np.ndarray) -> None:
         """Fit Y to the finite part of the trace, with headroom for the rail line."""
@@ -294,17 +297,23 @@ class EcgPane(QtWidgets.QWidget):
 
     def _set_readout(self) -> None:
         if not self._plotted:
-            self.readout.setText("no samples yet")
+            self.readout.setText(i18n.t("no samples yet"))
             return
         stamp = "t=%.2f s" % self._latest_t
-        gaps = "" if not self._gaps else " | %d gap(s) in window" % self._gaps
-        state = "PAUSED (data still acquired)" if self._paused else "%g s window" % self._window_s
-        self.readout.setText("%s | %s pts | %s%s" % (stamp, f"{self._plotted:,}", state, gaps))
+        gaps = "" if not self._gaps else i18n.t(" | %d gap(s) in window") % self._gaps
+        state = (
+            i18n.t("PAUSED (data still acquired)")
+            if self._paused
+            else i18n.t("%g s window") % self._window_s
+        )
+        self.readout.setText(
+            i18n.t("%s | %s pts | %s%s") % (stamp, f"{self._plotted:,}", state, gaps)
+        )
 
     def _refresh_notice(self) -> None:
         parts = []
         if self._paused:
-            parts.append("DISPLAY PAUSED -- acquisition continues")
+            parts.append(i18n.t("DISPLAY PAUSED -- acquisition continues"))
         if self._note:
             parts.append(self._note)
         text = "\n".join(parts)
@@ -317,7 +326,7 @@ class EcgPane(QtWidgets.QWidget):
     # ---------------------------------------------------------------- handlers
     def _on_pause_toggled(self, checked: bool) -> None:
         self._paused = bool(checked)
-        self.pause_button.setText("Resume display" if checked else "Pause display")
+        self.pause_button.setText(i18n.t("Resume display") if checked else i18n.t("Pause display"))
         self._set_readout()
         self._refresh_notice()
         self.pauseRequested.emit(bool(checked))

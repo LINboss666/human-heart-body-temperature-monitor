@@ -25,7 +25,7 @@ import datetime as dt
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from .. import protocol
+from .. import i18n, protocol
 from ..rtc import describe_epoch, validate_calendar
 from .metric_cards import QUALITY_COLOURS
 
@@ -56,7 +56,7 @@ class ConnectionPanel(QtWidgets.QGroupBox):
     pingRequested = QtCore.Signal()
 
     def __init__(self, parent: QtWidgets.QWidget | None = None, *, demo: bool = False) -> None:
-        super().__init__("Link & device", parent)
+        super().__init__(i18n.t("Link & device"), parent)
         self._demo = False
         root = QtWidgets.QVBoxLayout(self)
         root.setSpacing(8)
@@ -66,7 +66,7 @@ class ConnectionPanel(QtWidgets.QGroupBox):
         root.addStretch(1)
         self._connected = False
         self._pending_refresh = False
-        self._set_link("closed", *_CLOSED)
+        self._set_link(i18n.t("closed"), *_CLOSED)
         self.set_demo_mode(demo)
 
     # ------------------------------------------------------------------ demo
@@ -81,7 +81,7 @@ class ConnectionPanel(QtWidgets.QGroupBox):
         if self._demo:
             from ..demo_source import DEMO_PORT_LABEL
 
-            self.setTitle("Link & device -- DEMO: no hardware, no serial port")
+            self.setTitle(i18n.t("Link & device -- DEMO: no hardware, no serial port"))
             self.port_combo.blockSignals(True)
             self.port_combo.clear()
             self.port_combo.addItem(DEMO_PORT_LABEL)
@@ -90,9 +90,9 @@ class ConnectionPanel(QtWidgets.QGroupBox):
             self.port_combo.blockSignals(False)
             self.refresh_button.setEnabled(False)
             self.baud_combo.setEnabled(False)
-            self.set_detail("synthetic ECG generated on this PC")
+            self.set_detail(i18n.t("synthetic ECG generated on this PC"))
         else:
-            self.setTitle("Link & device")
+            self.setTitle(i18n.t("Link & device"))
             self.port_combo.setEnabled(not self._connected)
             self.port_combo.setEditable(True)
             self.refresh_button.setEnabled(not self._connected)
@@ -109,103 +109,111 @@ class ConnectionPanel(QtWidgets.QGroupBox):
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setHorizontalSpacing(6)
 
-        grid.addWidget(QtWidgets.QLabel("Serial port"), 0, 0)
+        grid.addWidget(QtWidgets.QLabel(i18n.t("Serial port")), 0, 0)
         self.port_combo = QtWidgets.QComboBox()
         self.port_combo.setEditable(True)
         self.port_combo.setInsertPolicy(QtWidgets.QComboBox.InsertPolicy.NoInsert)
         self.port_combo.setToolTip(
-            "Ports are enumerated by the worker thread. Type a port name (e.g. COM7) if "
-            "the list is empty or stale."
+            i18n.t(
+                "Ports are enumerated by the worker thread. Type a port name (e.g. COM7) if "
+                "the list is empty or stale."
+            )
         )
-        self.port_combo.lineEdit().setPlaceholderText("COMn / /dev/ttyUSBn")
+        self.port_combo.lineEdit().setPlaceholderText(i18n.t("COMn / /dev/ttyUSBn"))
         grid.addWidget(self.port_combo, 0, 1)
 
-        self.refresh_button = QtWidgets.QPushButton("Refresh")
+        self.refresh_button = QtWidgets.QPushButton(i18n.t("Refresh"))
         self.refresh_button.clicked.connect(self._on_refresh)
         grid.addWidget(self.refresh_button, 0, 2)
 
-        grid.addWidget(QtWidgets.QLabel("Baud"), 1, 0)
+        grid.addWidget(QtWidgets.QLabel(i18n.t("Baud")), 1, 0)
         self.baud_combo = QtWidgets.QComboBox()
         self.baud_combo.setEditable(True)
         for rate in COMMON_BAUD_RATES:
             self.baud_combo.addItem(f"{rate:,}", rate)
         self.baud_combo.setCurrentIndex(self.baud_combo.findData(DEFAULT_BAUD))
         self.baud_combo.setToolTip(
-            "Contract default is 230400 8N1 (UART_BAUD_RATE), 23040 byte/s of wire capacity."
+            i18n.t(
+                "Contract default is 230400 8N1 (UART_BAUD_RATE), 23040 byte/s of wire capacity."
+            )
         )
         grid.addWidget(self.baud_combo, 1, 1)
 
-        self.connect_button = QtWidgets.QPushButton("Connect")
+        self.connect_button = QtWidgets.QPushButton(i18n.t("Connect"))
         self.connect_button.setCheckable(True)
         self.connect_button.clicked.connect(self._on_connect_toggled)
         grid.addWidget(self.connect_button, 1, 2)
 
-        self.link_label = QtWidgets.QLabel("closed")
+        self.link_label = QtWidgets.QLabel(i18n.t("closed"))
         self.link_label.setObjectName("LinkState")
         self.link_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         grid.addWidget(self.link_label, 2, 0, 1, 3)
 
-        self.detail_label = QtWidgets.QLabel("idle")
+        self.detail_label = QtWidgets.QLabel(i18n.t("idle"))
         self.detail_label.setObjectName("CardSub")
         self.detail_label.setWordWrap(True)
         grid.addWidget(self.detail_label, 3, 0, 1, 3)
         return box
 
     def _build_device_group(self) -> QtWidgets.QWidget:
-        box = QtWidgets.QGroupBox("Device")
+        box = QtWidgets.QGroupBox(i18n.t("Device"))
         form = QtWidgets.QFormLayout(box)
         form.setContentsMargins(8, 4, 8, 4)
         form.setHorizontalSpacing(8)
         form.setVerticalSpacing(2)
-        self.identity_label = QtWidgets.QLabel("no HELLO received")
+        self.identity_label = QtWidgets.QLabel(i18n.t("no HELLO received"))
         self.identity_label.setWordWrap(True)
-        self.caps_label = QtWidgets.QLabel("unknown until HELLO")
+        self.caps_label = QtWidgets.QLabel(i18n.t("unknown until HELLO"))
         self.caps_label.setWordWrap(True)
         self.caps_label.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.device_label = QtWidgets.QLabel("waiting for STATUS")
+        self.device_label = QtWidgets.QLabel(i18n.t("waiting for STATUS"))
         self.device_label.setWordWrap(True)
-        self.echo_label = QtWidgets.QLabel("no command answered yet")
+        self.echo_label = QtWidgets.QLabel(i18n.t("no command answered yet"))
         self.echo_label.setWordWrap(True)
         self.echo_label.setObjectName("CardSub")
-        form.addRow("Identity:", self.identity_label)
-        form.addRow("Can do:", self.caps_label)
-        form.addRow("Now:", self.device_label)
-        form.addRow("Device said:", self.echo_label)
+        form.addRow(i18n.t("Identity:"), self.identity_label)
+        form.addRow(i18n.t("Can do:"), self.caps_label)
+        form.addRow(i18n.t("Now:"), self.device_label)
+        form.addRow(i18n.t("Device said:"), self.echo_label)
         return box
 
     def _build_rtc_group(self) -> QtWidgets.QWidget:
-        box = QtWidgets.QGroupBox("Device time (RTC)")
+        box = QtWidgets.QGroupBox(i18n.t("Device time (RTC)"))
         grid = QtWidgets.QGridLayout(box)
         grid.setContentsMargins(8, 4, 8, 4)
         self.rtc_edit = QtWidgets.QDateTimeEdit(dt.datetime.now())
         self.rtc_edit.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
         self.rtc_edit.setCalendarPopup(True)
         self.rtc_edit.setToolTip(
-            "SET_RTC carries calendar fields only: no zone, no UTC offset. The picker is "
-            "local wall-clock time, matching what the OLED shows. See pc_monitor/rtc.py."
+            i18n.t(
+                "SET_RTC carries calendar fields only: no zone, no UTC offset. The picker is "
+                "local wall-clock time, matching what the OLED shows. See pc_monitor/rtc.py."
+            )
         )
         grid.addWidget(self.rtc_edit, 0, 0, 1, 3)
 
-        self.sync_button = QtWidgets.QPushButton("Sync Device Time")
-        self.sync_button.setToolTip("Send the PC's current wall clock with SET_RTC.")
+        self.sync_button = QtWidgets.QPushButton(i18n.t("Sync Device Time"))
+        self.sync_button.setToolTip(i18n.t("Send the PC's current wall clock with SET_RTC."))
         self.sync_button.clicked.connect(self.rtcSyncRequested.emit)
         grid.addWidget(self.sync_button, 1, 0)
 
-        self.apply_time_button = QtWidgets.QPushButton("Set picked time")
+        self.apply_time_button = QtWidgets.QPushButton(i18n.t("Set picked time"))
         self.apply_time_button.clicked.connect(self._on_set_picked)
         grid.addWidget(self.apply_time_button, 1, 1)
 
-        self.get_time_button = QtWidgets.QPushButton("Query")
-        self.get_time_button.setToolTip("Send GET_RTC and show the RTC_RESPONSE.")
+        self.get_time_button = QtWidgets.QPushButton(i18n.t("Query"))
+        self.get_time_button.setToolTip(i18n.t("Send GET_RTC and show the RTC_RESPONSE."))
         self.get_time_button.clicked.connect(self.rtcGetRequested.emit)
         grid.addWidget(self.get_time_button, 1, 2)
 
-        self.ping_button = QtWidgets.QPushButton("Ping")
-        self.ping_button.setToolTip("PKT_PING with a 4-byte token; the device echoes a PONG.")
+        self.ping_button = QtWidgets.QPushButton(i18n.t("Ping"))
+        self.ping_button.setToolTip(
+            i18n.t("PKT_PING with a 4-byte token; the device echoes a PONG.")
+        )
         self.ping_button.clicked.connect(self.pingRequested.emit)
         grid.addWidget(self.ping_button, 2, 0)
 
-        self.rtc_label = QtWidgets.QLabel("device clock not set from this host")
+        self.rtc_label = QtWidgets.QLabel(i18n.t("device clock not set from this host"))
         self.rtc_label.setObjectName("CardSub")
         self.rtc_label.setWordWrap(True)
         grid.addWidget(self.rtc_label, 2, 1, 1, 3)
@@ -250,7 +258,7 @@ class ConnectionPanel(QtWidgets.QGroupBox):
         self.refresh_button.setEnabled(True)
         self._pending_refresh = False
         if not ports and not keep:
-            self.set_detail("no serial ports enumerated -- type a port name or use --demo")
+            self.set_detail(i18n.t("no serial ports enumerated -- type a port name or use --demo"))
 
     def _index_for(self, wanted: str, ports: list[tuple[str, str]]) -> int:
         for row, (device, _description) in enumerate(ports):
@@ -272,7 +280,9 @@ class ConnectionPanel(QtWidgets.QGroupBox):
         self._connected = bool(connected)
         self.connect_button.blockSignals(True)
         self.connect_button.setChecked(bool(connected))
-        self.connect_button.setText("Disconnect" if connected else "Connect")
+        self.connect_button.setText(
+            i18n.t("Disconnect") if connected else i18n.t("Connect")
+        )
         self.connect_button.blockSignals(False)
         self.connect_button.setEnabled(True)
         self.port_combo.setEnabled(not connected and not self._demo)
@@ -281,12 +291,12 @@ class ConnectionPanel(QtWidgets.QGroupBox):
             self.baud_combo.setEnabled(not connected)
             self.refresh_button.setEnabled(not connected)
         if connected:
-            self._set_link(f"open: {label}", *_OPEN)
+            self._set_link(i18n.t("open: %s") % label, *_OPEN)
         else:
-            self._set_link("closed", *_CLOSED)
+            self._set_link(i18n.t("closed"), *_CLOSED)
 
     def set_link_error(self, message: str) -> None:
-        self._set_link(f"error: {message}", *_ERROR)
+        self._set_link(i18n.t("error: %s") % message, *_ERROR)
 
     def _set_link(self, text: str, bg: str, fg: str) -> None:
         self.link_label.setText(text)
@@ -295,7 +305,7 @@ class ConnectionPanel(QtWidgets.QGroupBox):
     # -- device side ---------------------------------------------------------
     def show_hello(self, hello: protocol.Hello) -> None:
         self.identity_label.setText(
-            "fw %s, proto 0x%02X, %d Hz, batch<=%d, %d-bit ADC, caps 0x%04X"
+            i18n.t("fw %s, proto 0x%02X, %d Hz, batch<=%d, %d-bit ADC, caps 0x%04X")
             % (
                 hello.fw_version,
                 hello.proto_version,
@@ -311,14 +321,18 @@ class ConnectionPanel(QtWidgets.QGroupBox):
             cap.name for cap in protocol.Capability if cap is not protocol.Capability.NONE and not caps & cap
         ]
         self.caps_label.setText(
-            "present: %s\nabsent: %s" % (", ".join(present) or "none", ", ".join(absent) or "none")
+            i18n.t("present: %s\nabsent: %s")
+            % (
+                ", ".join(present) or i18n.t("none"),
+                ", ".join(absent) or i18n.t("none"),
+            )
         )
 
     def clear_device(self) -> None:
-        self.identity_label.setText("no HELLO received")
-        self.caps_label.setText("unknown until HELLO")
-        self.device_label.setText("waiting for STATUS")
-        self.echo_label.setText("no command answered yet")
+        self.identity_label.setText(i18n.t("no HELLO received"))
+        self.caps_label.setText(i18n.t("unknown until HELLO"))
+        self.device_label.setText(i18n.t("waiting for STATUS"))
+        self.echo_label.setText(i18n.t("no command answered yet"))
 
     def show_status_line(self, text: str) -> None:
         self.device_label.setText(text)
@@ -336,29 +350,31 @@ class ConnectionPanel(QtWidgets.QGroupBox):
 
     def show_rtc(self, calendar: protocol.RtcCalendar) -> None:
         if calendar.epoch is None:
-            self.rtc_label.setText("device reports %s" % calendar.text)
+            self.rtc_label.setText(i18n.t("device reports %s") % calendar.text)
         else:
             self.rtc_label.setText(
-                "device reports %s (epoch %d = %s read as UTC)"
+                i18n.t("device reports %s (epoch %d = %s read as UTC)")
                 % (calendar.text, calendar.epoch, describe_epoch(calendar.epoch))
             )
         parsed = QtCore.QDateTime.fromString(calendar.text, "yyyy-MM-dd HH:mm:ss")
         if parsed.isValid():
             self.rtc_edit.setDateTime(parsed)
         else:  # a device that answers nonsense must not crash the panel
-            self.rtc_label.setText("device reported an unreadable calendar: %s" % (calendar.text,))
+            self.rtc_label.setText(
+                i18n.t("device reported an unreadable calendar: %s") % (calendar.text,)
+            )
 
     # ---------------------------------------------------------------- handlers
     def _on_refresh(self) -> None:
         self.refresh_button.setEnabled(False)
         self._pending_refresh = True
-        self.set_detail("enumerating ports...")
+        self.set_detail(i18n.t("enumerating ports..."))
         self.refreshRequested.emit()
 
     def _on_connect_toggled(self, checked: bool) -> None:
         if checked:
             self.connect_button.setEnabled(False)
-            self._set_link("opening...", *_CLOSED)
+            self._set_link(i18n.t("opening..."), *_CLOSED)
             self.connectRequested.emit(self.current_port(), self.current_baud())
         else:
             self.disconnectRequested.emit()
@@ -378,6 +394,8 @@ class ConnectionPanel(QtWidgets.QGroupBox):
                 calendar.second,
             )
         except ValueError as exc:
-            self.show_command_result("picker rejected, nothing sent: %s" % exc, ok=False)
+            self.show_command_result(
+                i18n.t("picker rejected, nothing sent: %s") % exc, ok=False
+            )
             return
         self.rtcSetRequested.emit(calendar)
