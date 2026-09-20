@@ -116,7 +116,7 @@ no horizontal offset**, not mirrored and not smeared across page boundaries. Tha
 two items the all-white frame could not decide: the SSD1306 profile's column offset of 0 is
 right for this module, and its COM scan / `0xDA` pairing put the rows where the driver thinks
 they are. The black screen before this was the dangling `KK_UI_App` descriptor, not the
-profile - see [KK_UI_NOTES.md](KK_UI_NOTES.md#the-descriptor-lifetime-contract-the-bug-that-made-a-real-panel-stay-black).
+profile - see [KK_UI_NOTES.md](KK_UI_NOTES.md#the-descriptor-lifetime-contract-and-the-bug-that-made-a-real-panel-stay-black).
 **Measured 2026-09-19, first — pixels PASS, profile chosen.** A temporary
 debug branch bypassed KK_UI and drove the driver directly: `OLED_Init()` returned OK on the
 SSD1306 profile and a full-frame `OLED_Fill()` + `OLED_Update()` lit **every pixel** of the
@@ -132,7 +132,7 @@ wanted.)
 **And why the menu was black before the fix.** The frozen firmware showed nothing at all
 despite the ACK, because `ui_app_init()` handed `KK_UI_Init()` the address of a stack-local
 descriptor that KK_UI keeps using on every frame. See
-[KK_UI_NOTES.md](KK_UI_NOTES.md#the-descriptor-lifetime-contract-the-bug-that-made-a-real-panel-stay-black);
+[KK_UI_NOTES.md](KK_UI_NOTES.md#the-descriptor-lifetime-contract-and-the-bug-that-made-a-real-panel-stay-black);
 the fix is `fix/ui-app-lifetime`.
 **Symptom → profile change.**
 | Symptom | Meaning |

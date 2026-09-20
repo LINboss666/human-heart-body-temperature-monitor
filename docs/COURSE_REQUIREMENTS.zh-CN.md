@@ -66,11 +66,12 @@
 
 | 需求 | 实现 | 状态 |
 | --- | --- | --- |
-| OLED 人机界面 | KK_UI + KK_OLED，走 I2C1，400 kHz，128×64 | `SOFTWARE IMPLEMENTED` · `HARDWARE VERIFICATION PENDING` (Stages D/E) |
-| 控制器身份 | 未知。三个编译期配置（SSD1306 / SH1106 / CH1116），电荷泵字节与列偏移各不相同；全部标注为 UNVERIFIED | 有意悬而未决，而非猜测 |
-| 地址 | 开机时探测 `0x3C` / `0x3D`；结果通过链路以及在 STATUS 页面上报告。ACK 只证明存在，绝不证明控制器型号 | `SOFTWARE IMPLEMENTED` |
-| 缺少显示屏不得让设备变砖 | `OLED_Init()` 失败会置 `oled_present=false`；采集、RTC 与 UART 全部继续运行 | `SOFTWARE IMPLEMENTED` · `HARDWARE VERIFICATION PENDING` (Stage E) |
-| 页面 | MAIN 菜单、ECG（自定义波形）、BODY TEMP、STATUS、DATE & TIME、SETTINGS、ABOUT | `SOFTWARE IMPLEMENTED` |
+| OLED 人机界面 | KK_UI + KK_OLED，走 I2C1，400 kHz，128×64 | `SOFTWARE IMPLEMENTED` · 总线、控制器、初始化、像素输出以及真正渲染出的 MAIN 菜单，全部 `HARDWARE VERIFIED` 2026-09-19（Stages D/E） |
+| 控制器身份 | **SSD1306**，由用户在模组上认定，且与观察到的行为一致：它的初始化块被接受，整帧写入点亮了每一个像素 | `HARDWARE VERIFIED` 2026-09-19。SH1106 / CH1116 两个配置仍留在树里，以备换用别的模组 |
+| 地址 | 开机时探测 `0x3C` / `0x3D`；结果通过链路以及在 STATUS 页面上报告。ACK 只证明存在，绝不证明控制器型号 | `SOFTWARE IMPLEMENTED` · 这块模组在 **7-bit `0x3C`**（HAL `0x78`）应答 —— `HARDWARE VERIFIED` 2026-09-19 |
+| 列偏移与 COM 排布 | SSD1306 配置使用偏移 0 以及 `0xC8`/`0xDA,0x12` | `HARDWARE VERIFIED` 2026-09-19：MAIN 菜单居中，既不左右偏移，行序也不错乱 |
+| 缺少显示屏不得让设备变砖 | `OLED_Init()` 失败会置 `oled_present=false`；采集、RTC 与 UART 全部继续运行 | `SOFTWARE IMPLEMENTED` · `HARDWARE VERIFICATION PENDING`（如今装上了面板，所以未验证的恰恰是"没有面板"那条路径） |
+| 页面 | MAIN 菜单、ECG（自定义波形）、BODY TEMP、STATUS、DATE & TIME、SETTINGS、ABOUT | `SOFTWARE IMPLEMENTED` · MAIN 菜单 `HARDWARE VERIFIED` 2026-09-19 · 其余六个仅 `HOST VERIFIED`（`tests/host/test_ui_frame.c`） |
 | 128 px 上的波形 | min/max 抽取，每列 8 samples，以垂直线段绘制，因此窄 QRS 不会被平均掉 | `SOFTWARE IMPLEMENTED` · `HARDWARE VERIFICATION PENDING` |
 | UI 不得阻塞采样 | 显示刷新是局部分区的，并在主循环中运行；ADC 链路由硬件驱动，并有 128 ms 的缓冲 | `SOFTWARE IMPLEMENTED` · `HARDWARE VERIFICATION PENDING` (Stage M) |
 | 字体授权 | 仅 ASCII，由 `tools/gen_oled_fonts.py` 在本仓库内自行编写；无第三方字体，也无 CJK 字表 | `HOST VERIFIED`，针对 vendor 解码器，78 条断言 |
@@ -96,14 +97,15 @@
 | 不携带大型中文字体表 | 仅 ASCII，1113 bytes |
 | 信号链中不使用浮点 | 所有滤波与检测算术都是整数 |
 | 不得靠更换器件来伪造 flash 占用 | 器件仍是 `STM32F103C8`，ROM `0x08000000` 大小 `0x10000`，RAM `0x20000000` 大小 `0x5000` —— 与阶段 0 相比未变 |
-| 实测占用 | `Code=38392 RO=3096 RW=380 ZI=7524` → 41868 B flash（占 64 KB 的 **63.9 %**），7904 B RAM（占 20 KB 的 **38.6 %**） |
+| 实测占用 | `Code=38244 RO=3228 RW=380 ZI=7524` → 41852 B flash（占 64 KB 的 **63.9 %**），7904 B RAM（占 20 KB 的 **38.6 %**） |
 | 编译器告警 | Keil 告警级别 2 下 `0 Warning(s)`，无 `--diag_suppress`，无整类告警抑制 |
 
 ## 未满足之处，直说如下
 
 1. **不存在任何来自人体的测量。** 每一个心率数字都来自合成搏动。模拟前端并未做出。
-2. **从未见过任何像素。** 面板、它的控制器、它的地址与它的上拉电阻全部未经确认；UI 仅通过
-   编译验证。
+2. **真机上只见过一个页面。** 自 2026-09-19 起，MAIN 菜单在这块真的 128×64 模组上居中且
+   清晰可读。ECG 波形页、BODY TEMP、STATUS、DATE & TIME、SETTINGS 与 ABOUT 只在宿主的影子屏
+   上渲染过，而且还没有任何一次按键在硬件上在这几个页面之间导航过。
 3. 在真实硅片上，**LSE 起振、VBAT 保持与触及轨的输入行为都尚未被观察到**。
 4. **课程所描述的那种导联脱落检测并未实现**，因为所需的硬件接口不存在。现有的是信号质量
    报告，其命名刻意避免暗示做过某种没人做过的电极测量。

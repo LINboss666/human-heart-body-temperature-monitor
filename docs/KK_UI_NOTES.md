@@ -30,7 +30,7 @@ copy as project-owned code, and adapt only the driver boundary.
 | Application initialises the OLED, then KK_UI | `ui_app_init()` calls `OLED_Init()` before `KK_UI_Init()`; KK_UI never calls `OLED_Init()` |
 | `KK_UI_Update(now_ms, input)` from one context, at least every 10 ms | Called once per `App_Loop()` iteration at ~5 ms; time is passed in, there is no tick hook |
 | Interrupts only accumulate raw input state | Buttons are sampled in the main loop; the DMA ISRs touch no UI state |
-| Page descriptions, labels, fonts, icons and bound variables stay valid for the UI lifetime | **This is a borrow, not a copy: see [The descriptor lifetime contract](#the-descriptor-lifetime-contract-the-bug-that-made-a-real-panel-stay-black).** All of it is now `static`/`const` at file scope, including the `KK_UI_App` descriptor itself; live text is formatted into static buffers, never rebound to temporaries. Until 2026-09-19 the descriptor was a local in `ui_app_init()` and this row was false |
+| Page descriptions, labels, fonts, icons and bound variables stay valid for the UI lifetime | **This is a borrow, not a copy: see [The descriptor lifetime contract](#the-descriptor-lifetime-contract-and-the-bug-that-made-a-real-panel-stay-black).** All of it is now `static`/`const` at file scope, including the `KK_UI_App` descriptor itself; live text is formatted into static buffers, never rebound to temporaries. Until 2026-09-19 the descriptor was a local in `ui_app_init()` and this row was false |
 | The application must not clear or submit a frame in parallel with KK_UI | No `OLED_Clear()` / `OLED_Update*()` call exists anywhere in `App/`; only `KK_UI_Invalidate()` |
 | No dynamic memory, no widget tree, no runtime registration | Pages are static tables; grep confirms zero allocator calls in all three code bases |
 | Missing hardware is reported, not guessed | `OLED_Init()` failure sets `oled_present=false` and the firmware continues |
@@ -66,7 +66,7 @@ copy as project-owned code, and adapt only the driver boundary.
    `references/driver-contract.md` marks those as protected boundaries and
    `kk-oled-port/SKILL.md` forbids guessing controller parameters into them.
 
-## The descriptor lifetime contract — the bug that made a real panel stay black
+## The descriptor lifetime contract and the bug that made a real panel stay black
 
 Found on hardware on 2026-09-19, on the first board ever flashed with this firmware.
 It is recorded here because it is the one requirement in the table above that cannot be

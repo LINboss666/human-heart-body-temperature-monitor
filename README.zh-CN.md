@@ -2,11 +2,13 @@
 
 [English](README.md) · **中文**
 
-> **Phase 1 —— 应用软件已全部写完，可通过编译，并在主机上测过；但从未在硬件上运行过。**
+> **Phase 1 —— 应用软件已全部写完，可通过编译，在主机上测过，如今也真的跑在一块板子上了；
+> 但它没有量过一次任何东西。**
 >
 > 这是一个学生课程设计项目，**不是医疗器械**。它不做任何诊断，其输出不得用于任何临床
-> 决策。本固件从未采集过任何人体心电或体温数据，也没有任何一块屏幕显示过它的任何一个
-> 像素。哪一条结论来自宿主测试、哪一条仍在等待硬件，见
+> 决策。本固件从未采集过任何人体心电或体温数据。截至 2026-09-19，显示链路已在硬件上得到
+> 验证——一块 SSD1306 模组在 7-bit `0x3C` 点亮了每一个像素，主菜单居中显示——而其余每一个
+> 页面、每一个按键、每一路模拟输入都还在等待。哪一条结论来自宿主测试、哪一条仍在等待硬件，见
 > [docs/COURSE_REQUIREMENTS.zh-CN.md](docs/COURSE_REQUIREMENTS.zh-CN.md)（中文说明见该文档正文）。
 
 | 项目 | 数值 |
@@ -14,9 +16,9 @@
 | MCU | STM32F103C8T6 —— Cortex-M3，64 KB Flash，20 KB SRAM |
 | 工具链 | Keil MDK-ARM（AC5 / ARMCC V5.06）、STM32CubeMX 6.17.0、FW_F1 V1.8.7 |
 | 固件编译结果 | `0 Error(s), 0 Warning(s)` |
-| 占用 | `Code=38392 RO=3096 RW=380 ZI=7524` → **Flash 63.9 %，RAM 38.6 %** |
-| 宿主测试 | 6 个 C 可执行文件、1050 条断言；Python 用例 256 个，全部 0 失败 |
-| 已在硬件上验证 | **一项都没有。** 见 [docs/HARDWARE_TEST_PLAN.zh-CN.md](docs/HARDWARE_TEST_PLAN.zh-CN.md) |
+| 占用 | `Code=38244 RO=3228 RW=380 ZI=7524` → **Flash 63.9 %，RAM 38.6 %** |
+| 宿主测试 | 7 个 C 可执行文件、1074 条断言；Python 用例 256 个，全部 0 失败 |
+| 已在硬件上验证 | **只有 OLED，但已贯通。** I2C1 在 PB6/PB7、一块 SSD1306 模组在 7-bit `0x3C` 应答、初始化序列通过、整帧写入点亮全部像素、真机上居中显示主菜单——均为 2026-09-19。其余一项都没有：见 [docs/HARDWARE_TEST_PLAN.zh-CN.md](docs/HARDWARE_TEST_PLAN.zh-CN.md) |
 | Phase 0 基线 | tag `v0.1-baseline`，commit `eb8a795` |
 
 ## 它做什么
@@ -158,10 +160,11 @@ python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
 | 已做到的、有证据的 | 未被声称的 |
 | --- | --- |
 | 干净编译通过，且没有关闭任何告警 | 任何来自人体的测量 |
-| 1050 条宿主断言跑在实际出货的整数代码上 | RTC 晶振能否起振、VBAT 能否保持 |
-| 256 个 Python 用例；C 与 Python 两侧协议逐字节对齐（21 条 C 生成帧回放） | 屏幕上是否真的出现过任何一个像素 |
+| 1074 条宿主断言跑在实际出货的整数代码上 | RTC 晶振能否起振、VBAT 能否保持 |
+| 256 个 Python 用例；C 与 Python 两侧协议逐字节对齐（21 条 C 生成帧回放） | 除主菜单之外还有哪个页面真机出现过 |
 | 日历 1970→2099 逐小时往返测试 | ±2 bpm 的心率精度 |
 | 字库能被厂商自己的解码器解出 | 前端增益或偏置是否正确 |
+| OLED 总线、`0x3C` 应答、SSD1306 初始化、整帧点亮、居中主菜单——都在硬件上 | 那块屏上是否真的动过一条波形 |
 | Flash/RAM 各余 23 KB / 12 KB | 加载 UI 与 UART 后 1 kHz 是否还守得住 |
 
 所有未完成项都配有可执行的步骤，见
@@ -195,6 +198,7 @@ python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
 | [docs/PHASE1_FINAL_HANDOFF.zh-CN.md](docs/PHASE1_FINAL_HANDOFF.zh-CN.md) | 最后一轮修复，以及软件冻结声明 |
 
 Phase 0 冻结在 tag `v0.1-baseline`。Phase 1 软件经审查链
-`phase1/full-system` → `phase1/review-fixes` → `phase1/final-fixes` 完成后，现已合并进 `main`；
-这三条分支保留作为每一轮审查的记录。
-以上都不构成"这是一台完成度合格的仪器"的声明：硬件验证数量仍为零。
+`phase1/full-system` → `phase1/review-fixes` → `phase1/final-fixes` 完成后进入 `main`；
+这三条分支保留作为每一轮审查的记录，而 `fix/ui-app-lifetime` 是面对真实硬件做出的第一处改动。
+以上都不构成"这是一台完成度合格的仪器"的声明：板子目前只证实了显示链路，项目里测量那一侧
+依然没有任何硬件证据。

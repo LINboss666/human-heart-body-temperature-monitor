@@ -210,6 +210,8 @@ Everything pending is itemised with a procedure in
 | [docs/PHASE1_FINAL_HANDOFF.md](docs/PHASE1_FINAL_HANDOFF.md) · [中文](docs/PHASE1_FINAL_HANDOFF.zh-CN.md) | The final fix pass, and the software freeze |
 
 Phase 0 is frozen at tag `v0.1-baseline`. Phase 1 software came in through the review chain
-`phase1/full-system` → `phase1/review-fixes` → `phase1/final-fixes` and is now merged into
-`main`; those branches remain as the record of each pass. None of that is a claim of a
-finished instrument: hardware verification stands at zero.
+`phase1/full-system` → `phase1/review-fixes` → `phase1/final-fixes`; those branches remain as
+the record of each pass, and `fix/ui-app-lifetime` is the first change made against real
+hardware. None of that is a claim of a finished instrument: what the board has confirmed so
+far is the display chain, and the measurement side of the project still has no hardware
+evidence at all.
