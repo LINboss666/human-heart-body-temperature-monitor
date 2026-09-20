@@ -1,5 +1,7 @@
 # Course Requirement Mapping — Phase 1
 
+**English** · [中文](COURSE_REQUIREMENTS.zh-CN.md)
+
 Every row is stated as **what the code does** and **what has been demonstrated**.
 Nothing here carries the word PASS unless a host test proved it without hardware.
 The two verdicts used are:

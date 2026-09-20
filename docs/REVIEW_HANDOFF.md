@@ -1,5 +1,7 @@
 # REVIEW HANDOFF — Phase 0
 
+**English** · [中文](REVIEW_HANDOFF.zh-CN.md)
+
 Self-contained handoff for an independent reviewer. Everything here was read out of
 `Human Heart and Body Temperature Monitor.ioc` and the generated C under `Core/Src/`;
 nothing was inferred from the project brief alone. Where the brief and the tree disagreed,

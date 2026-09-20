@@ -1,5 +1,7 @@
 # PINMAP — Phase 0 Baseline
 
+**English** · [中文](PINMAP.zh-CN.md)
+
 Every row below was verified against **two** independent sources, not against the
 project brief alone:
 

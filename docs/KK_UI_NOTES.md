@@ -1,5 +1,7 @@
 # KK_UI / KK_OLED Integration Notes
 
+**English** · [中文](KK_UI_NOTES.zh-CN.md)
+
 Records what was actually found in the upstream projects and how this firmware
 conforms, so a reviewer does not have to re-derive it. Provenance and licences are
 in [UPSTREAM.md](UPSTREAM.md).

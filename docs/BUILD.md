@@ -1,5 +1,7 @@
 # BUILD — Phase 0 Baseline
 
+**English** · [中文](BUILD.zh-CN.md)
+
 Target IDE: **Keil MDK-ARM (uVision)**. There is no Makefile, CMake or `arm-none-eabi-gcc`
 build in this repository, and CubeMX was told to generate an MDK-ARM project only
 (`ProjectManager.TargetToolchain = MDK-ARM V5.32`).

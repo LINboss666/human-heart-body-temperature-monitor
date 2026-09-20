@@ -7,7 +7,7 @@
 > 这是一个学生课程设计项目，**不是医疗器械**。它不做任何诊断，其输出不得用于任何临床
 > 决策。本固件从未采集过任何人体心电或体温数据，也没有任何一块屏幕显示过它的任何一个
 > 像素。哪一条结论来自宿主测试、哪一条仍在等待硬件，见
-> [docs/COURSE_REQUIREMENTS.md](docs/COURSE_REQUIREMENTS.md)（中文说明见该文档正文）。
+> [docs/COURSE_REQUIREMENTS.zh-CN.md](docs/COURSE_REQUIREMENTS.zh-CN.md)（中文说明见该文档正文）。
 
 | 项目 | 数值 |
 | --- | --- |
@@ -16,7 +16,7 @@
 | 固件编译结果 | `0 Error(s), 0 Warning(s)` |
 | 占用 | `Code=38392 RO=3096 RW=380 ZI=7524` → **Flash 63.9 %，RAM 38.6 %** |
 | 宿主测试 | 6 个 C 可执行文件、1050 条断言；Python 用例 256 个，全部 0 失败 |
-| 已在硬件上验证 | **一项都没有。** 见 [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) |
+| 已在硬件上验证 | **一项都没有。** 见 [docs/HARDWARE_TEST_PLAN.zh-CN.md](docs/HARDWARE_TEST_PLAN.zh-CN.md) |
 | Phase 0 基线 | tag `v0.1-baseline`，commit `eb8a795` |
 
 ## 它做什么
@@ -29,7 +29,7 @@ CSV 与内嵌波形图的 Excel 工作簿。
 ## 总体架构
 
 没有 RTOS，没有堆，信号链里没有浮点，协作式超级循环。完整数据流见
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+[docs/ARCHITECTURE.zh-CN.md](docs/ARCHITECTURE.zh-CN.md)。
 
 ```
 TIM3 TRGO 1 kHz ──► ADC1 扫描（CH0 心电、CH1 体温）──► DMA1_Channel1 循环模式
@@ -46,7 +46,7 @@ pc_monitor/  PySide6 + pyqtgraph ─► 环形缓冲 ─► 25 FPS 绘图 ─►
 | 层次 | 目录 |
 | --- | --- |
 | 应用层 | [`App/`](App/) —— acquisition、ecg、temperature、rtc_service、buttons、protocol、uart、display、ui、diagnostics |
-| 第三方 UI | [`ThirdParty/kk_ui`](ThirdParty/kk_ui/)、[`ThirdParty/kk_oled`](ThirdParty/kk_oled/) —— MIT，见 [docs/UPSTREAM.md](docs/UPSTREAM.md) |
+| 第三方 UI | [`ThirdParty/kk_ui`](ThirdParty/kk_ui/)、[`ThirdParty/kk_oled`](ThirdParty/kk_oled/) —— MIT，见 [docs/UPSTREAM.zh-CN.md](docs/UPSTREAM.zh-CN.md) |
 | CubeMX 生成物 | `Core/`、`Drivers/`、`.ioc` 文件 |
 | PC 上位机 | [`pc_monitor/`](pc_monitor/) |
 | 宿主测试脚手架 | [`tests/host/`](tests/host/)、[`tools/`](tools/) |
@@ -63,14 +63,14 @@ pc_monitor/  PySide6 + pyqtgraph ─► 环形缓冲 ─► 25 FPS 绘图 ─►
 | PB13 | KEY_DOWN | PD0/PD1 | HSE 8 MHz |
 | PB14 | KEY_OK / 启停 | | |
 
-带验证结论的完整表格：[docs/PINMAP.md](docs/PINMAP.md)。
+带验证结论的完整表格：[docs/PINMAP.zh-CN.md](docs/PINMAP.zh-CN.md)。
 
 ## 采集链 —— 以及为什么它不是软件采样
 
 TIM3 以 1 kHz 溢出，它的 TRGO 脉冲触发 ADC 的外部触发源；ADC 扫描两个 rank；DMA 把每一
 个转换结果搬进一个 1024 字节的环形缓冲。**定时器中断既没有使能，也不需要** —— 整条链路
 在中断里做的全部工作就是置一个标志位。外设配置与实测滤波器响应见
-[docs/CUBEMX_CONFIG.md](docs/CUBEMX_CONFIG.md)。
+[docs/CUBEMX_CONFIG.zh-CN.md](docs/CUBEMX_CONFIG.zh-CN.md)。
 
 ## 心电处理
 
@@ -108,10 +108,10 @@ KK_UI（菜单、信息页、整数/布尔编辑器、toast、动画）叠加在
 控制器型号（**SSD1306 / SH1106 / CH1116**）和地址（`0x3C` / `0x3D`）**未知**。仓库里带了
 三份完整的配置，全部标注为未验证；地址在开机时探测并上报。上游自己的移植规范明确禁止
 猜测这些值，而 I2C 有应答只能证明"有器件在应答"，不能证明它是屏。如果没有屏应答，固件
-会继续采集、继续计时、继续往外送数据。见 [docs/KK_UI_NOTES.md](docs/KK_UI_NOTES.md)。
+会继续采集、继续计时、继续往外送数据。见 [docs/KK_UI_NOTES.zh-CN.md](docs/KK_UI_NOTES.zh-CN.md)。
 
 字库只有 ASCII，且由仓库内的 `tools/gen_oled_fonts.py` 自己生成，因为上游字形服务的输出
-不在 MIT 授权范围内 —— 见 [docs/UPSTREAM.md](docs/UPSTREAM.md)。
+不在 MIT 授权范围内 —— 见 [docs/UPSTREAM.zh-CN.md](docs/UPSTREAM.zh-CN.md)。
 
 ## 二进制串口协议
 
@@ -119,7 +119,7 @@ KK_UI（菜单、信息页、整数/布尔编辑器、toast、动画）叠加在
 `0x29B1`）；小端；可重新同步的解析器。`ECG_BATCH` 携带 20 个原始码值加当前体温、心率和
 状态标志，并带一个绝对的 `first_sample_index`，PC 端据此重建精确的 1 kHz 时间轴，并发现
 那些靠序号计数器根本看不出来的整块丢失。**实测带宽占用：3608 B/s ÷ 23040 B/s =
-15.7 %。** 帧布局见 [docs/PROTOCOL.md](docs/PROTOCOL.md)，唯一定义在
+15.7 %。** 帧布局见 [docs/PROTOCOL.zh-CN.md](docs/PROTOCOL.zh-CN.md)，唯一定义在
 `App/protocol/protocol.h`。
 
 ## 编译固件
@@ -138,7 +138,7 @@ KK_UI（菜单、信息页、整数/布尔编辑器、toast、动画）叠加在
 python tools/add_keil_sources.py
 ```
 
-细节与实测占用见 [docs/BUILD.md](docs/BUILD.md)。
+细节与实测占用见 [docs/BUILD.zh-CN.md](docs/BUILD.zh-CN.md)。
 
 ## 运行 PC 上位机
 
@@ -159,13 +159,13 @@ python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
 | --- | --- |
 | 干净编译通过，且没有关闭任何告警 | 任何来自人体的测量 |
 | 1050 条宿主断言跑在实际出货的整数代码上 | RTC 晶振能否起振、VBAT 能否保持 |
-| C 与 Python 两侧协议逐字节对齐（21 条 C 生成帧回放） | 屏幕上是否真的出现过任何一个像素 |
+| 256 个 Python 用例；C 与 Python 两侧协议逐字节对齐（21 条 C 生成帧回放） | 屏幕上是否真的出现过任何一个像素 |
 | 日历 1970→2099 逐小时往返测试 | ±2 bpm 的心率精度 |
 | 字库能被厂商自己的解码器解出 | 前端增益或偏置是否正确 |
 | Flash/RAM 各余 23 KB / 12 KB | 加载 UI 与 UART 后 1 kHz 是否还守得住 |
 
 所有未完成项都配有可执行的步骤，见
-[docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md)。
+[docs/HARDWARE_TEST_PLAN.zh-CN.md](docs/HARDWARE_TEST_PLAN.zh-CN.md)。
 
 ## 安全声明
 
@@ -179,18 +179,22 @@ python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
 
 | 文件 | 作用 |
 | --- | --- |
-| [docs/BASELINE.md](docs/BASELINE.md) | Phase 0：哪些已冻结、哪些在等硬件 |
-| [docs/PINMAP.md](docs/PINMAP.md) | 引脚表，含 EXPECTED / ACTUAL / MISMATCH 结论 |
-| [docs/CUBEMX_CONFIG.md](docs/CUBEMX_CONFIG.md) | 时钟树与每一项外设配置 |
-| [docs/BUILD.md](docs/BUILD.md) | Keil target 设置与构建验证方式 |
-| [docs/PROTOCOL.md](docs/PROTOCOL.md) | 线上格式与带宽推算 |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 数据流、遵循的规则、已知弱点 |
-| [docs/COURSE_REQUIREMENTS.md](docs/COURSE_REQUIREMENTS.md) | 逐条需求的状态 |
-| [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) | 台架上手测试，阶段 A–O |
-| [docs/KK_UI_NOTES.md](docs/KK_UI_NOTES.md) | 上游到底是什么，以及本项目的符合性 |
-| [docs/UPSTREAM.md](docs/UPSTREAM.md) | 第三方来源与授权 |
-| [docs/REVIEW_HANDOFF.md](docs/REVIEW_HANDOFF.md) · [PHASE1_REVIEW_HANDOFF.md](docs/PHASE1_REVIEW_HANDOFF.md) · [PHASE1_REVIEW_FIX_HANDOFF.md](docs/PHASE1_REVIEW_FIX_HANDOFF.md) · [PHASE1_FINAL_HANDOFF.md](docs/PHASE1_FINAL_HANDOFF.md) | 独立代码审查交接包，以及每一轮改了什么 |
+| [docs/BASELINE.zh-CN.md](docs/BASELINE.zh-CN.md) | Phase 0：哪些已冻结、哪些在等硬件 |
+| [docs/PINMAP.zh-CN.md](docs/PINMAP.zh-CN.md) | 引脚表，含 EXPECTED / ACTUAL / MISMATCH 结论 |
+| [docs/CUBEMX_CONFIG.zh-CN.md](docs/CUBEMX_CONFIG.zh-CN.md) | 时钟树与每一项外设配置 |
+| [docs/BUILD.zh-CN.md](docs/BUILD.zh-CN.md) | Keil target 设置与构建验证方式 |
+| [docs/PROTOCOL.zh-CN.md](docs/PROTOCOL.zh-CN.md) | 线上格式与带宽推算 |
+| [docs/ARCHITECTURE.zh-CN.md](docs/ARCHITECTURE.zh-CN.md) | 数据流、遵循的规则、已知弱点 |
+| [docs/COURSE_REQUIREMENTS.zh-CN.md](docs/COURSE_REQUIREMENTS.zh-CN.md) | 逐条需求的状态 |
+| [docs/HARDWARE_TEST_PLAN.zh-CN.md](docs/HARDWARE_TEST_PLAN.zh-CN.md) | 台架上手测试，阶段 A–O |
+| [docs/KK_UI_NOTES.zh-CN.md](docs/KK_UI_NOTES.zh-CN.md) | 上游到底是什么，以及本项目的符合性 |
+| [docs/UPSTREAM.zh-CN.md](docs/UPSTREAM.zh-CN.md) | 第三方来源与授权 |
+| [docs/REVIEW_HANDOFF.zh-CN.md](docs/REVIEW_HANDOFF.zh-CN.md) | Phase 0 审查交接包 —— 历史记录 |
+| [docs/PHASE1_REVIEW_HANDOFF.zh-CN.md](docs/PHASE1_REVIEW_HANDOFF.zh-CN.md) | Phase 1 审查交接包 —— 历史记录 |
+| [docs/PHASE1_REVIEW_FIX_HANDOFF.zh-CN.md](docs/PHASE1_REVIEW_FIX_HANDOFF.zh-CN.md) | 审查修复那轮改了什么 —— 历史记录 |
+| [docs/PHASE1_FINAL_HANDOFF.zh-CN.md](docs/PHASE1_FINAL_HANDOFF.zh-CN.md) | 最后一轮修复，以及软件冻结声明 |
 
-Phase 0 冻结在 tag `v0.1-baseline`。Phase 1 软件冻结在分支 `phase1/final-fixes`，它是审查链
-`phase1/full-system` → `phase1/review-fixes` → `phase1/final-fixes` 的末端。
-两者都不构成"这是一台完成度合格的仪器"的声明。
+Phase 0 冻结在 tag `v0.1-baseline`。Phase 1 软件经审查链
+`phase1/full-system` → `phase1/review-fixes` → `phase1/final-fixes` 完成后，现已合并进 `main`；
+这三条分支保留作为每一轮审查的记录。
+以上都不构成"这是一台完成度合格的仪器"的声明：硬件验证数量仍为零。

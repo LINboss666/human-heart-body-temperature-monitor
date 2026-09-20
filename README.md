@@ -194,19 +194,22 @@ Everything pending is itemised with a procedure in
 
 | File | Purpose |
 | --- | --- |
-| [docs/BASELINE.md](docs/BASELINE.md) | Phase 0: what is frozen and what awaits hardware |
-| [docs/PINMAP.md](docs/PINMAP.md) | Pin table with EXPECTED / ACTUAL / MISMATCH verdicts |
-| [docs/CUBEMX_CONFIG.md](docs/CUBEMX_CONFIG.md) | Clock tree and every peripheral setting |
-| [docs/BUILD.md](docs/BUILD.md) | Keil target settings and how builds were verified |
-| [docs/PROTOCOL.md](docs/PROTOCOL.md) | Wire format and bandwidth arithmetic |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow, rules followed, known weaknesses |
-| [docs/COURSE_REQUIREMENTS.md](docs/COURSE_REQUIREMENTS.md) | Requirement-by-requirement status |
-| [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) | Bench bring-up, stages A–O |
-| [docs/KK_UI_NOTES.md](docs/KK_UI_NOTES.md) | What the upstream really is, and conformance |
-| [docs/UPSTREAM.md](docs/UPSTREAM.md) | Third-party provenance and licences |
-| [docs/REVIEW_HANDOFF.md](docs/REVIEW_HANDOFF.md) · [PHASE1_REVIEW_HANDOFF.md](docs/PHASE1_REVIEW_HANDOFF.md) · [PHASE1_REVIEW_FIX_HANDOFF.md](docs/PHASE1_REVIEW_FIX_HANDOFF.md) · [PHASE1_FINAL_HANDOFF.md](docs/PHASE1_FINAL_HANDOFF.md) | Independent review handoffs, and what each pass changed |
+| [docs/BASELINE.md](docs/BASELINE.md) · [中文](docs/BASELINE.zh-CN.md) | Phase 0: what is frozen and what awaits hardware |
+| [docs/PINMAP.md](docs/PINMAP.md) · [中文](docs/PINMAP.zh-CN.md) | Pin table with EXPECTED / ACTUAL / MISMATCH verdicts |
+| [docs/CUBEMX_CONFIG.md](docs/CUBEMX_CONFIG.md) · [中文](docs/CUBEMX_CONFIG.zh-CN.md) | Clock tree and every peripheral setting |
+| [docs/BUILD.md](docs/BUILD.md) · [中文](docs/BUILD.zh-CN.md) | Keil target settings and how builds were verified |
+| [docs/PROTOCOL.md](docs/PROTOCOL.md) · [中文](docs/PROTOCOL.zh-CN.md) | Wire format and bandwidth arithmetic |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [中文](docs/ARCHITECTURE.zh-CN.md) | Data flow, rules followed, known weaknesses |
+| [docs/COURSE_REQUIREMENTS.md](docs/COURSE_REQUIREMENTS.md) · [中文](docs/COURSE_REQUIREMENTS.zh-CN.md) | Requirement-by-requirement status |
+| [docs/HARDWARE_TEST_PLAN.md](docs/HARDWARE_TEST_PLAN.md) · [中文](docs/HARDWARE_TEST_PLAN.zh-CN.md) | Bench bring-up, stages A–O |
+| [docs/KK_UI_NOTES.md](docs/KK_UI_NOTES.md) · [中文](docs/KK_UI_NOTES.zh-CN.md) | What the upstream really is, and conformance |
+| [docs/UPSTREAM.md](docs/UPSTREAM.md) · [中文](docs/UPSTREAM.zh-CN.md) | Third-party provenance and licences |
+| [docs/REVIEW_HANDOFF.md](docs/REVIEW_HANDOFF.md) · [中文](docs/REVIEW_HANDOFF.zh-CN.md) | Phase 0 review handoff — historical |
+| [docs/PHASE1_REVIEW_HANDOFF.md](docs/PHASE1_REVIEW_HANDOFF.md) · [中文](docs/PHASE1_REVIEW_HANDOFF.zh-CN.md) | Phase 1 review handoff — historical |
+| [docs/PHASE1_REVIEW_FIX_HANDOFF.md](docs/PHASE1_REVIEW_FIX_HANDOFF.md) · [中文](docs/PHASE1_REVIEW_FIX_HANDOFF.zh-CN.md) | What the review-fix pass changed — historical |
+| [docs/PHASE1_FINAL_HANDOFF.md](docs/PHASE1_FINAL_HANDOFF.md) · [中文](docs/PHASE1_FINAL_HANDOFF.zh-CN.md) | The final fix pass, and the software freeze |
 
-Phase 0 is frozen at tag `v0.1-baseline`. Phase 1 software is frozen on branch
-`phase1/final-fixes`, which is the head of the review chain
-`phase1/full-system` → `phase1/review-fixes` → `phase1/final-fixes`. Neither is a claim of
-a finished instrument.
+Phase 0 is frozen at tag `v0.1-baseline`. Phase 1 software came in through the review chain
+`phase1/full-system` → `phase1/review-fixes` → `phase1/final-fixes` and is now merged into
+`main`; those branches remain as the record of each pass. None of that is a claim of a
+finished instrument: hardware verification stands at zero.
